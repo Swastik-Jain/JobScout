@@ -32,7 +32,9 @@ export const Login: React.FC = () => {
     } catch (err: any) {
       const msg =
         err?.response?.data?.detail ||
-        (isLogin ? 'Invalid email or password.' : 'Registration failed. Email may already be in use.');
+        (err?.message === 'Network Error' || !err?.response
+          ? 'Cannot connect to backend server. Please check your connection or CORS settings.'
+          : (isLogin ? 'Invalid email or password.' : 'Registration failed. Please try again.'));
       setError(msg);
     } finally {
       setLoading(false);

@@ -13,10 +13,10 @@ from google import genai
 from google.genai import types
 
 from app.core.config import settings
-from app.tools.job_scraper import scrape_jobs_batch
+from app.tools.job_scraper import scrape_jobs_batch, is_job_closed
 
 # Current models available in v1beta — ordered fastest/cheapest first
-SCORING_MODEL_CHAIN = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+SCORING_MODEL_CHAIN = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
 RETRYABLE_CODES = ("503", "500", "UNAVAILABLE", "INTERNAL")
 MAX_RETRIES = 3
 BASE_DELAY = 2.0
@@ -80,7 +80,20 @@ async def scrape_and_rank_jobs(snippets: List[Dict], user_profile: Dict) -> List
     enriched = []
     for s in snippets:
         url = s.get("link", "")
+        raw_title = s.get("title", "")
+        raw_snippet = s.get("snippet", "")
+
+        # 1. Snippet-level pre-check: drop if title or snippet shows it's closed
+        if is_job_closed(raw_title) or is_job_closed(raw_snippet):
+            print(f"[JobFinderAgent] ➔ Skipping closed listing from search snippet: {raw_title[:50]}")
+            continue
+
         page_data = scraped.get(url)
+
+        # 2. Live HTML check: drop if scraper confirmed the position has closed
+        if page_data and page_data.get("is_closed"):
+            print(f"[JobFinderAgent] ➔ Dropping confirmed closed job page: {url[:60]}")
+            continue
 
         if page_data and page_data.get("description") and len(page_data["description"]) > 50:
             # Real data from page HTML
@@ -360,16 +373,17 @@ async def run_job_finder_agent(job_role: str, user_profile: Dict) -> List[Dict]:
     all_snippets: List[Dict] = []
 
     if settings.serper_api_key:
-        # Target individual job posting pages, not category listing pages
+        # Negative search operators to filter out expired listings across all platforms
+        EXCLUDE_CLOSED = '-"no longer accepting applications" -"job has expired" -"closed" -"not accepting applications"'
         queries = [
             # LinkedIn /jobs/view/ = individual job posting with real description
-            (f'"{job_role}" site:linkedin.com/jobs/view India OR Bangalore OR "Remote"', "LinkedIn"),
+            (f'"{job_role}" site:linkedin.com/jobs/view (India OR Bangalore OR "Remote") {EXCLUDE_CLOSED}', "LinkedIn"),
             # Naukri individual job detail pages
-            (f'"{job_role}" "apply" "experience" site:naukri.com -site:naukri.com/jobs', "Naukri"),
+            (f'"{job_role}" "apply" "experience" site:naukri.com -site:naukri.com/jobs {EXCLUDE_CLOSED}', "Naukri"),
             # Indeed individual job pages
-            (f'"{job_role}" "job description" "responsibilities" site:in.indeed.com', "Indeed"),
+            (f'"{job_role}" "job description" "responsibilities" site:in.indeed.com {EXCLUDE_CLOSED}', "Indeed"),
             # Glassdoor individual job detail pages
-            (f'"{job_role}" "responsibilities" "requirements" site:glassdoor.co.in/job-listing', "Glassdoor"),
+            (f'"{job_role}" "responsibilities" "requirements" site:glassdoor.co.in/job-listing {EXCLUDE_CLOSED}', "Glassdoor"),
         ]
 
         results = await asyncio.gather(*[

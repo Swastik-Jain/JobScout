@@ -24,6 +24,42 @@ HEADERS = {
     "Connection": "keep-alive",
 }
 
+# Detection phrases across LinkedIn, Naukri, Indeed, Glassdoor, Workday, etc.
+CLOSED_JOB_INDICATORS = [
+    "no longer accepting applications",
+    "not accepting applications",
+    "this job is no longer available",
+    "job is no longer available",
+    "this job has expired",
+    "job has expired",
+    "this posting has expired",
+    "posting has expired",
+    "application closed",
+    "applications are closed",
+    "applications closed",
+    "position has been filled",
+    "this position has been filled",
+    "this role is closed",
+    "vacancy is closed",
+    "this vacancy is closed",
+    "hiring has ceased",
+    "this job is no longer active",
+    "this job is inactive",
+    "no longer accepting responses",
+    "job has been closed",
+    "this job has been closed",
+    "we're sorry, this job has expired",
+    "this job listing has expired",
+]
+
+
+def is_job_closed(text: str) -> bool:
+    """Return True if text contains any expired or closed job phrases."""
+    if not text:
+        return False
+    lower = text.lower()
+    return any(phrase in lower for phrase in CLOSED_JOB_INDICATORS)
+
 
 def _extract_json_ld(html: str) -> Optional[Dict]:
     """Extract JobPosting JSON-LD from page HTML."""
@@ -145,6 +181,11 @@ async def scrape_job_page(url: str) -> Optional[Dict]:
                 return None
 
             html = resp.text
+
+            # Check if job is expired or no longer accepting applications
+            if is_job_closed(html):
+                print(f"[Scraper] ➔ Dropping closed/expired job: {url[:60]}")
+                return {"is_closed": True}
 
             # 1. Try JSON-LD first (most reliable)
             jld = _extract_json_ld(html)

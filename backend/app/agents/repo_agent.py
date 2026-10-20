@@ -71,7 +71,7 @@ def analyze_repos_sync(repo_links: List[str]) -> Dict:
 
     prompt = _build_repo_analysis_prompt(repo_links)
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",

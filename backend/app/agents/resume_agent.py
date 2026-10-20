@@ -18,10 +18,10 @@ from app.core.config import settings
 
 # Ordered fallback chain: fastest/cheapest first
 MODEL_FALLBACK_CHAIN = [
-    "gemini-2.0-flash",        # primary — fastest
-    "gemini-2.0-flash-lite",   # lite fallback — always available
-    "gemini-1.5-flash",        # highly stable standard fallback
-    "gemini-1.5-pro",          # high reasoning fallback
+    "gemini-3.8-flash",        # primary — latest frontier flash with native reasoning
+    "gemini-3.5-flash",        # fast secondary fallback
+    "gemini-2.5-flash",        # tertiary fallback
+    "gemini-2.0-flash",        # safety fallback
 ]
 
 # Errors that warrant a retry (transient)
@@ -125,7 +125,7 @@ def _make_client() -> genai.Client:
 
 
 class ResumeAgent:
-    def __init__(self, model_name: str = "gemini-2.0-flash"):
+    def __init__(self, model_name: str = "gemini-3.8-flash"):
         self.model_name = model_name
         self.client = _make_client()
 

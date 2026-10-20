@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.tools.job_scraper import scrape_jobs_batch
 
 # Current models available in v1beta — ordered fastest/cheapest first
-SCORING_MODEL_CHAIN = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
+SCORING_MODEL_CHAIN = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
 RETRYABLE_CODES = ("503", "500", "UNAVAILABLE", "INTERNAL")
 MAX_RETRIES = 3
 BASE_DELAY = 2.0

@@ -19,8 +19,9 @@ from app.core.config import settings
 # Ordered fallback chain: fastest/cheapest first
 MODEL_FALLBACK_CHAIN = [
     "gemini-2.0-flash",        # primary — fastest
-    "gemini-2.0-flash-lite",   # lite fallback — always available in v1beta
-    "gemini-1.5-pro-latest",   # last resort
+    "gemini-2.0-flash-lite",   # lite fallback — always available
+    "gemini-1.5-flash",        # highly stable standard fallback
+    "gemini-1.5-pro",          # high reasoning fallback
 ]
 
 # Errors that warrant a retry (transient)

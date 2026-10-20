@@ -28,7 +28,10 @@ class Settings:
     # ── CORS ──────────────────────────────────────────────────────
     @property
     def allowed_origins(self) -> list[str]:
-        raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+        raw = os.getenv(
+            "ALLOWED_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,https://web-psi-dun-11.vercel.app"
+        )
         return [o.strip() for o in raw.split(",") if o.strip()]
 
 

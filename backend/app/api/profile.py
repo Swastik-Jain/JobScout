@@ -7,7 +7,7 @@ Profile routes
   PUT   /profile/{profile_id}
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
@@ -94,7 +94,7 @@ def update_my_profile(
         user.github_repos = list(req.github_repos)
         flag_modified(user, "github_repos")
 
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     session.commit()
     session.refresh(user)

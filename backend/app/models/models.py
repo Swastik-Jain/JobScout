@@ -1,6 +1,11 @@
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from sqlmodel import SQLModel, Field, Column, JSON
-from datetime import datetime
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
 
 class UserProfile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -20,8 +25,8 @@ class UserProfile(SQLModel, table=True):
     github_repos: List[Dict] = Field(default_factory=list, sa_column=Column(JSON))
     # github_repos schema: [{url, name, description, tech, stars, complexity_score, agent_comment, verified}]
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class JobMatch(SQLModel, table=True):
@@ -36,7 +41,7 @@ class JobMatch(SQLModel, table=True):
     match_score: float
     justification: Optional[str] = None
     key_requirements: List[str] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ApplicationHistory(SQLModel, table=True):
@@ -46,4 +51,4 @@ class ApplicationHistory(SQLModel, table=True):
     resume_md: str
     ats_score: float
     platform: str
-    applied_at: datetime = Field(default_factory=datetime.utcnow)
+    applied_at: datetime = Field(default_factory=utc_now)

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: job-agentcrit-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        value: sqlite:///./job_bot.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: SERPER_API_KEY
+        sync: false

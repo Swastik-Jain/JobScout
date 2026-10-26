@@ -18,10 +18,9 @@ from app.core.config import settings
 
 # Ordered fallback chain: fastest/cheapest first
 MODEL_FALLBACK_CHAIN = [
-    "gemini-3.8-flash",        # primary — latest frontier flash with native reasoning
-    "gemini-3.5-flash",        # fast secondary fallback
-    "gemini-2.5-flash",        # tertiary fallback
-    "gemini-2.0-flash",        # safety fallback
+    "gemini-2.0-flash",        # primary — fastest
+    "gemini-2.0-flash-lite",   # lite fallback — always available in v1beta
+    "gemini-1.5-pro-latest",   # last resort
 ]
 
 # Errors that warrant a retry (transient)
@@ -125,7 +124,7 @@ def _make_client() -> genai.Client:
 
 
 class ResumeAgent:
-    def __init__(self, model_name: str = "gemini-3.8-flash"):
+    def __init__(self, model_name: str = "gemini-2.0-flash"):
         self.model_name = model_name
         self.client = _make_client()
 
@@ -221,7 +220,9 @@ class ResumeAgent:
                     time.sleep(delay)
                 else:
                     raise
-        raise last_error  # Should never reach here
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"Failed to generate resume with {model_name}")
 
     def generate_resume(
         self,
@@ -230,117 +231,37 @@ class ResumeAgent:
         critic_feedback: Optional[str] = None,
     ) -> ResumeAgentOutput:
 
-        # ── DEMO MODE ─────────────────────────────────────────────────────────
-        import time; time.sleep(8)  # simulate AI processing time
-        name      = user_profile.get("name", "Swastik Jain")
-        email     = user_profile.get("email", "swastikjain32@gmail.com")
-        phone     = user_profile.get("phone", "+91 98765 43210")
-        skills    = user_profile.get("skills") or ["Python", "FastAPI", "React", "TypeScript", "LangGraph", "Docker"]
-        skills_str = ", ".join(skills[:8])
-
-        demo_resume = f"""{name}
-{email} | {phone} | linkedin.com/in/swastikjain | github.com/swastikjain
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROFESSIONAL SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Innovative Software Engineer with 2+ years of experience building AI-driven, full-stack
-applications. Specializes in LLM orchestration, autonomous agent systems, and scalable
-FastAPI backends. Proven ability to deliver production-grade solutions integrating Gemini,
-LangGraph, and modern React frontends — reducing manual workflows by 70%.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TECHNICAL SKILLS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Languages     : {skills_str}
-Frameworks    : FastAPI, React, LangGraph, LangChain, Next.js
-Databases     : PostgreSQL, SQLite, Redis, Pinecone
-Tools & DevOps: Docker, Git, GitHub Actions, AWS EC2, CI/CD
-AI/ML         : Gemini API, Groq, LLM Fine-tuning, RAG Pipelines, ATS Optimization
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WORK EXPERIENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Software Engineer Intern | TechCorp AI                           Jan 2024 – Present
-• Architected a multi-agent LangGraph pipeline that automated resume screening for 500+
-  applicants/day, cutting recruiter review time by 65%
-• Integrated Gemini 2.0 Flash with structured JSON output mode, achieving 98% parse
-  success rate across 10,000+ resume generation requests
-• Built a real-time fraud detection engine using TF-IDF + cosine similarity, flagging
-  92% of scam job listings before user interaction
-• Optimized FastAPI backend with async SQLModel and Redis caching, reducing average
-  API response time from 420ms to 85ms
-
-Full-Stack Developer | Freelance                                 Jun 2023 – Dec 2023
-• Delivered 6 production web applications using React + TypeScript + Node.js for
-  clients across e-commerce, EdTech, and SaaS sectors
-• Implemented JWT-based auth systems, Stripe payment integration, and SSE-based
-  real-time dashboards used by 1,200+ active users
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROJECTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Autonomous Job Application System | Python, FastAPI, LangGraph, React, Gemini
-• Built an end-to-end AI agent that discovers jobs via Serper API, ranks them using
-  Groq Llama3, generates ATS-optimized resumes, and auto-submits applications
-• Achieved ATS scores of 85–95/100 across tested job descriptions with critic loop
-
-JobAgent v2 | TypeScript, React, Vite, TailwindCSS
-• Designed a real-time mission control dashboard with fraud detection, live agent logs
-  via WebSocket, and animated job queue — reduced candidate scam exposure by 92%
-
-Resume Critic Loop | Python, google.genai, Pydantic
-• Implemented a self-correcting Generate → Critique → Re-generate loop using Gemini
-  with exponential backoff and 3-model fallback for 99.2% uptime
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EDUCATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-B.Tech in Computer Science & Engineering                         2021 – 2025
-Vellore Institute of Technology, Vellore
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CERTIFICATIONS & ACHIEVEMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Google Cloud Associate — Google (2024)
-• LangChain & LangGraph Certified Developer — DeepLearning.AI (2024)
-• Winner — Smart India Hackathon 2023 (AI Track)"""
-
-        return ResumeAgentOutput(
-            resume_md=demo_resume,
-            ats_score=91,
-            improvements=[
-                "Add a quantified metric to the TechCorp 'fraud detection' bullet (e.g., '500ms → 50ms')",
-                "Include 2–3 more cloud/DevOps keywords from the job description (e.g., Kubernetes, Terraform)",
-                "Add a dedicated 'Open Source Contributions' section to strengthen credibility",
-            ],
+        profile_text = self._build_profile_text(user_profile)
+        prompt = (
+            f"RESUME FORMAT TEMPLATE:\n{RESUME_FORMAT}\n\n"
+            f"━━━━━━━━━━━━━━━\nUSER PROFILE:\n{profile_text}\n\n"
+            f"━━━━━━━━━━━━━━━\nTARGET JOB DESCRIPTION:\n{job_description}\n"
         )
-        # ── END DEMO MODE — delete above block and uncomment below to restore ──
-
-        # profile_text = self._build_profile_text(user_profile)
-        # prompt = f"""RESUME FORMAT TEMPLATE:\n{RESUME_FORMAT}\n\n━━━━━━━━━━━━━━━\nUSER PROFILE:\n{profile_text}\n\n━━━━━━━━━━━━━━━\nTARGET JOB DESCRIPTION:\n{job_description}\n"""
-        # if critic_feedback:
-        #     prompt += f"""\n━━━━━━━━━━━━━━━\nCRITIC FEEDBACK — MUST ADDRESS IN THIS VERSION:\n{critic_feedback}\n"""
-        # chain = [self.model_name] + [m for m in MODEL_FALLBACK_CHAIN if m != self.model_name]
-        # for model in chain:
-        #     try:
-        #         print(f"[ResumeAgent] ➔ Generating resume with {model}...")
-        #         return self._call_model(model, prompt)
-        #     except Exception as e:
-        #         err = str(e)
-        #         is_quota = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
-        #         is_transient = any(code in err for code in RETRYABLE_STATUS_CODES)
-        #         is_model_unavailable = "404" in err or "NOT_FOUND" in err
-        #         if is_quota:
-        #             print(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model...")
-        #         elif is_transient:
-        #             print(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model...")
-        #         elif is_model_unavailable:
-        #             print(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model...")
-        #         else:
-        #             print(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
-        #             return ResumeAgentOutput(resume_md=f"Resume generation failed — error: {err}", ats_score=0, improvements=[])
-        # return ResumeAgentOutput(resume_md="Resume generation failed — all models currently unavailable.", ats_score=0, improvements=["Retry in a few minutes."])
+        if critic_feedback:
+            prompt += (
+                f"\n━━━━━━━━━━━━━━━\n"
+                f"CRITIC FEEDBACK — MUST ADDRESS IN THIS VERSION:\n{critic_feedback}\n"
+            )
+        chain = [self.model_name] + [m for m in MODEL_FALLBACK_CHAIN if m != self.model_name]
+        for model in chain:
+            try:
+                print(f"[ResumeAgent] ➔ Generating resume with {model}...")
+                return self._call_model(model, prompt)
+            except Exception as e:
+                err = str(e)
+                is_quota = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
+                is_transient = any(code in err for code in RETRYABLE_STATUS_CODES)
+                is_model_unavailable = "404" in err or "NOT_FOUND" in err
+                if is_quota:
+                    print(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model...")
+                elif is_transient:
+                    print(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model...")
+                elif is_model_unavailable:
+                    print(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model...")
+                else:
+                    print(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
+                    return ResumeAgentOutput(resume_md=f"Resume generation failed — error: {err}", ats_score=0, improvements=[])
+        return ResumeAgentOutput(resume_md="Resume generation failed — all models currently unavailable.", ats_score=0, improvements=["Retry in a few minutes."])
 
     def critic_agent(self, resume_output: ResumeAgentOutput) -> Dict:
         score = resume_output.ats_score

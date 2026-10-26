@@ -48,8 +48,17 @@ CLOSED_JOB_INDICATORS = [
     "no longer accepting responses",
     "job has been closed",
     "this job has been closed",
+    "job posting closed",
+    "job is closed",
+    "opening has been filled",
+    "opening is closed",
+    "role has been filled",
     "we're sorry, this job has expired",
     "this job listing has expired",
+    "job has been archived",
+    "posting has ended",
+    "job not found",
+    "404 not found",
 ]
 
 
@@ -177,24 +186,47 @@ async def scrape_job_page(url: str) -> Optional[Dict]:
         ) as client:
             resp = await client.get(url)
 
+            final_url = str(resp.url).lower()
+
+            # 1. Dead pages (404/410) are definitively closed/removed
+            if resp.status_code in (404, 410):
+                print(f"[Scraper] ➔ Dropping dead/expired job (HTTP {resp.status_code}): {url[:60]}")
+                return {"is_closed": True, "reason": f"HTTP {resp.status_code}"}
+
+            # 2. Redirects to generic search or jobs home mean the role was unlisted
+            if "/jobs/search" in final_url or final_url.rstrip("/").endswith(("/jobs", "/jobs/search")):
+                print(f"[Scraper] ➔ Dropping redirected/unlisted job: {url[:60]}")
+                return {"is_closed": True, "reason": "Redirected to search/home"}
+
             if resp.status_code != 200:
                 return None
 
             html = resp.text
 
-            # Check if job is expired or no longer accepting applications
+            # 3. Check if job HTML explicitly states it is closed/expired
             if is_job_closed(html):
                 print(f"[Scraper] ➔ Dropping closed/expired job: {url[:60]}")
-                return {"is_closed": True}
+                return {"is_closed": True, "reason": "Closed text indicator"}
 
-            # 1. Try JSON-LD first (most reliable)
+            # 4. Try JSON-LD first (most reliable structured data)
             jld = _extract_json_ld(html)
             if jld:
                 data = _parse_from_json_ld(jld)
-                if data.get("title") and data.get("company"):
+                if data.get("title"):
+                    # Infer company from ATS URL if not present in JSON-LD
+                    if not data.get("company"):
+                        m_gh = re.search(r'greenhouse\.io/([^/]+)', url)
+                        m_lev = re.search(r'lever\.co/([^/]+)', url)
+                        m_ash = re.search(r'ashbyhq\.com/([^/]+)', url)
+                        if m_gh:
+                            data["company"] = m_gh.group(1).replace("-", " ").title()
+                        elif m_lev:
+                            data["company"] = m_lev.group(1).replace("-", " ").title()
+                        elif m_ash:
+                            data["company"] = m_ash.group(1).replace("-", " ").title()
                     return data
 
-            # 2. Fall back to meta tags (OG/Twitter cards)
+            # 5. Fall back to meta tags (OG/Twitter cards)
             title = (
                 _get_meta(html, "title") or
                 _get_meta(html, "og:title") or
@@ -206,10 +238,15 @@ async def scrape_job_page(url: str) -> Optional[Dict]:
                 _get_meta(html, "og:description")
             )
 
+            # Extract company from title if pattern is "Role at Company"
+            company = ""
+            if title and " at " in title:
+                company = title.split(" at ")[-1].split(" - ")[0].strip()
+
             if title or description:
                 return {
                     "title": title or "",
-                    "company": "",
+                    "company": company,
                     "location": "",
                     "description": description or "",
                     "salary_range": "",

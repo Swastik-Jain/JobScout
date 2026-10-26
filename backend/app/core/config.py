@@ -16,6 +16,7 @@ class Settings:
     # ── AI / Search APIs ──────────────────────────────────────────
     google_api_key: str = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
     serper_api_key: str = os.getenv("SERPER_API_KEY", "")
+    github_token: str = os.getenv("GITHUB_TOKEN", "")
 
     # ── Auth ──────────────────────────────────────────────────────
     secret_key: str = os.getenv("SECRET_KEY", "super-secret-key-change-in-production")

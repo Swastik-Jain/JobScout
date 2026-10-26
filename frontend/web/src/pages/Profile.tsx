@@ -221,18 +221,19 @@ export const Profile: React.FC = () => {
           tech: r.tech || [],
           complexity_score: r.complexity_score,
           agent_comment: r.agent_comment,
-          verified: true,
+          verified: Boolean(r.verified),
         }));
         setDraftRepos(newRepos);
         await updateProfile({ github_repos: newRepos });
 
-        setVerifiedRepos(newRepos.map((r: any) => ({
+        setVerifiedRepos(newRepos.filter((r: any) => r.verified).map((r: any) => ({
           repoName: r.name || r.url,
           comment: r.agent_comment || '',
           tech: r.tech || [],
         })));
 
-        pushLog(`[RepoAgent] ➔ ✅ Intelligence sync complete. ${newRepos.length} repo(s) verified.`);
+        const verifiedCount = newRepos.filter((r: any) => r.verified).length;
+        pushLog(`[RepoAgent] ➔ ✅ Intelligence sync complete. ${verifiedCount}/${newRepos.length} repo(s) verified via GitHub API.`);
       }
     } catch (e) {
       pushLog('[RepoAgent] ➔ ❌ Sync failed. Check backend connection.');
@@ -595,9 +596,13 @@ export const Profile: React.FC = () => {
                     <a href={repo.url} target="_blank" rel="noreferrer" className="text-sm font-mono text-blue-400 hover:text-blue-300 truncate">
                       {repo.name || repo.url}
                     </a>
-                    {repo.verified && (
+                    {repo.verified ? (
                       <span className="flex items-center gap-1 text-xs text-purple-400 font-medium">
                         <ShieldCheck size={11} /> Verified
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-zinc-500 font-medium">
+                        Unverified
                       </span>
                     )}
                     {repo.complexity_score && (

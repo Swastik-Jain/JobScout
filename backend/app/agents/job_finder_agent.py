@@ -42,7 +42,7 @@ async def fetch_serper(query: str, platform_name: str) -> List[Dict]:
                     "gl": "in",        # India geo
                     "hl": "en",
                     "location": "India",
-                    "tbs": "qdr:w",    # Past week — recent postings only
+                    "tbs": "qdr:d2",   # Past 48 hours only — fresh, active postings only
                 },
                 timeout=15.0,
             )
@@ -119,8 +119,17 @@ async def scrape_and_rank_jobs(snippets: List[Dict], user_profile: Dict) -> List
                     if m2:
                         entry["company"] = m2.group(1).strip()
         else:
-            # Fallback to snippet data (no working scrape)
-            # Extract company from Google title pattern: "Company hiring Role" or "Role - Company - LinkedIn"
+            # Drop unverified LinkedIn links — LinkedIn pages that fail to scrape or return 404/429 are 90%+ closed
+            if s.get("platform") == "LinkedIn":
+                print(f"[JobFinderAgent] ➔ Dropping unverified LinkedIn listing: {url[:55]}")
+                continue
+
+            # For other platforms, only keep snippet if it has a real description and is not closed
+            if not raw_snippet or len(raw_snippet) < 40 or is_job_closed(raw_snippet):
+                print(f"[JobFinderAgent] ➔ Dropping empty or closed snippet: {raw_title[:50]}")
+                continue
+
+            # Extract company from Google title pattern: "Company hiring Role" or "Role - Company"
             raw_title = s.get("title", "")
             company = ""
             m = re.search(r'^(.+?)\s+hiring\s+', raw_title, re.IGNORECASE)
@@ -137,7 +146,7 @@ async def scrape_and_rank_jobs(snippets: List[Dict], user_profile: Dict) -> List
                 "title": raw_title,
                 "company": company,
                 "location": "India",
-                "description": s.get("snippet", ""),
+                "description": raw_snippet,
                 "salary_range": "",
                 "source": "snippet",
             }
@@ -376,6 +385,8 @@ async def run_job_finder_agent(job_role: str, user_profile: Dict) -> List[Dict]:
         # Negative search operators to filter out expired listings across all platforms
         EXCLUDE_CLOSED = '-"no longer accepting applications" -"job has expired" -"closed" -"not accepting applications"'
         queries = [
+            # Direct modern ATS portals (Greenhouse, Lever, Ashby) — 100% active tech jobs
+            (f'"{job_role}" (site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com) (India OR "Remote") {EXCLUDE_CLOSED}', "Direct ATS"),
             # LinkedIn /jobs/view/ = individual job posting with real description
             (f'"{job_role}" site:linkedin.com/jobs/view (India OR Bangalore OR "Remote") {EXCLUDE_CLOSED}', "LinkedIn"),
             # Naukri individual job detail pages

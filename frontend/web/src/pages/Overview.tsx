@@ -391,18 +391,23 @@ export const Overview: React.FC = () => {
     setEngineLogs([]);
     setJobs([]);           // clear stale list immediately
     setAppliedIds(new Set()); // ← reset applied flags — new jobs are fresh
-    pushLog('[JobAgent] ➔ Initializing multi-platform job scanner...');
-    pushLog('[JobAgent] ➔ Querying LinkedIn, Indeed, Naukri, Glassdoor...');
+    pushLog('[JobScout] ➔ Initializing multi-platform job scanner...');
+    pushLog('[JobScout] ➔ Querying live portals for candidate match...');
     try {
       const res = await api.get('/fetch-jobs');
       const newJobs: Job[] = res.data || [];
       setJobs(newJobs);
-      pushLog(`[JobAgent] ➔ ✅ Found and ranked ${newJobs.length} opportunities.`);
+      if (newJobs.length === 0) {
+        pushLog('[JobScout] ➔ ℹ️ No active job listings found for your profile on supported portals.');
+      } else {
+        pushLog(`[JobScout] ➔ ✅ Found and ranked ${newJobs.length} opportunities.`);
+      }
 
       // Re-check DB: only mark applied if the new job IDs exist in applications
       await loadApplications();
-    } catch {
-      pushLog('[JobAgent] ➔ ❌ Scan failed. Check API keys.');
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || 'Scan failed. Check SERPER_API_KEY in backend/.env.';
+      pushLog(`[JobScout] ➔ ❌ ${msg}`);
     } finally {
       setScanning(false);
     }

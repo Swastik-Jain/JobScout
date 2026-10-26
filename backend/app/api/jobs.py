@@ -6,6 +6,7 @@ Jobs routes
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from app.core.config import settings
 from app.core.db import get_session
 from app.models.models import UserProfile, JobMatch, ApplicationHistory
 from app.api.deps import profile_to_dict
@@ -22,6 +23,12 @@ async def get_jobs(session: Session = Depends(get_session)):
         raise HTTPException(
             status_code=404,
             detail="Complete your profile first before scanning for jobs.",
+        )
+
+    if not settings.serper_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="SERPER_API_KEY is not configured in backend/.env. Live job search requires a Serper key.",
         )
 
     # Clear stale job listings + orphaned application history

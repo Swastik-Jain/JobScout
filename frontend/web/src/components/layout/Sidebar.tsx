@@ -28,9 +28,9 @@ export const Sidebar: React.FC = () => {
             <Zap size={16} className="text-white" />
           </div>
           <h1 className="text-base font-bold text-white tracking-tight">
-            JobAgent
+            JobScout
           </h1>
-          <span className="text-[10px] text-zinc-600 font-mono ml-auto">v2.0</span>
+          <span className="text-[10px] text-blue-400 font-mono font-semibold ml-auto">AI</span>
         </div>
       </div>
 

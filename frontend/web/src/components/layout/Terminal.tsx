@@ -34,7 +34,7 @@ export const Terminal: React.FC = () => {
                   log.includes('[RepoAgent]') ? 'text-purple-400' :
                   log.includes('[ATSAgent]') ? 'text-blue-400' :
                   log.includes('[ApplyAgent]') ? 'text-cyan-400' :
-                  log.includes('[JobAgent]') ? 'text-yellow-400' :
+                  log.includes('[JobFinderAgent]') || log.includes('[JobScout]') ? 'text-yellow-400' :
                   log.includes('❌') || log.includes('Error') ? 'text-red-400' :
                   log.includes('✅') || log.includes('complete') ? 'text-green-400' :
                   'text-zinc-400'

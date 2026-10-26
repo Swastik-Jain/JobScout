@@ -57,7 +57,7 @@ export const Jobs: React.FC = () => {
       {loading ? (
         <div className="flex flex-col flex-1 items-center justify-center p-20">
           <Loader2 className="animate-spin text-zinc-500 mb-4" size={32} />
-          <span className="text-zinc-400 animate-pulse font-mono text-sm">JobAgent is scanning LinkedIn, Indeed, etc...</span>
+          <span className="text-zinc-400 animate-pulse font-mono text-sm">JobScout is scanning live job portals...</span>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

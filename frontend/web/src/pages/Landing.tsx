@@ -107,8 +107,8 @@ export const Landing: React.FC = () => {
             <span className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
               <Sparkles size={14} className="text-white" />
             </span>
-            <span className="text-white font-semibold text-base tracking-tight">JobAgent</span>
-            <span className="text-xs text-zinc-500 font-mono ml-1">v2.0</span>
+            <span className="text-white font-semibold text-base tracking-tight">JobScout</span>
+            <span className="text-xs text-blue-400 font-mono ml-1 font-semibold">AI</span>
           </div>
         </div>
       </nav>
@@ -127,7 +127,7 @@ export const Landing: React.FC = () => {
             className="inline-flex items-center space-x-2 bg-zinc-900/80 border border-zinc-800 rounded-full px-4 py-1.5 text-sm text-zinc-400 mb-4 backdrop-blur-md"
           >
             <Sparkles size={16} className="text-blue-400" />
-            <span>JobAgent System v2.0 Online</span>
+            <span>JobScout Multi-Agent System Online</span>
           </motion.div>
 
           <motion.h1

@@ -244,119 +244,6 @@ Return: {{"jobs": [{{all original fields + match_score + justification + key_req
     return [{**j, "match_score": 50, "justification": "Scored offline", "key_requirements": []} for j in jobs]
 
 
-# ─── Gemini Fallback (no Serper) ──────────────────────────────────────────────
-async def generate_fallback_jobs(job_role: str, user_profile: Dict) -> List[Dict]:
-    """When Serper is unavailable, Gemini simulates realistic job listings."""
-    print("[JobFinderAgent] ➔ No Serper key — using Gemini Job Simulation Engine...")
-
-    skills = ", ".join(user_profile.get("skills", []))
-    exp = len(user_profile.get("experience", []))
-
-    prompt = f"""You are a Job Market Intelligence Agent. Generate 10 realistic, currently-in-demand job listings
-for a candidate with these skills: {skills} (experience entries: {exp}).
-Target role: {job_role}
-
-Simulate listings across LinkedIn, Naukri, Indeed, Glassdoor for Indian + global companies.
-
-Return STRICTLY valid JSON:
-{{
-  "jobs": [
-    {{
-      "title": "Senior Python Developer",
-      "company": "Razorpay",
-      "platform": "LinkedIn",
-      "url": "https://www.linkedin.com/jobs/view/example-id",
-      "location": "Bangalore, India",
-      "description": "2-3 sentence realistic job description.",
-      "match_score": 88,
-      "justification": "1 sentence matching rationale.",
-      "key_requirements": ["Python", "FastAPI", "PostgreSQL"]
-    }}
-  ]
-}}
-
-Use real Indian tech companies (Razorpay, Swiggy, Zomato, CRED, Meesho, Freshworks, Infosys, Wipro, TCS, Paytm, Flipkart, OLA, PhonePe etc) and global ones (Google, Microsoft, Amazon, Meta, Atlassian).
-Match scores should be honest (55-95 range). Vary platforms evenly.
-"""
-
-    for model in SCORING_MODEL_CHAIN:
-        try:
-            response = await _client.aio.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.8,
-                ),
-            )
-            result = json.loads(response.text)
-            jobs = result.get("jobs", [])
-            print(f"[JobFinderAgent] ➔ Gemini generated {len(jobs)} simulated jobs via {model}.")
-            return jobs
-        except Exception as e:
-            print(f"[JobFinderAgent] ➔ [{model}] fallback error: {e}")
-    return []
-
-
-# ─── Static Fallback (zero API calls) ────────────────────────────────────────
-def static_fallback_jobs(job_role: str, skills: list) -> List[Dict]:
-    """Returns pre-built realistic jobs when all Gemini quotas are exhausted."""
-    print("[JobFinderAgent] ➔ Using static fallback (all quotas exhausted)...")
-    skill_tags = skills[:3] if skills else ["Python", "JavaScript", "SQL"]
-
-    templates = [
-        {"title": f"Senior {job_role}", "company": "Razorpay", "platform": "LinkedIn",
-         "location": "Bangalore, India", "match_score": 88,
-         "url": "https://www.linkedin.com/jobs/razorpay-software-engineer",
-         "description": "Build and scale payment infrastructure used by 8M+ businesses. Strong backend and distributed systems experience required.",
-         "justification": "Strong match based on your backend skills and project experience.",
-         "key_requirements": skill_tags},
-        {"title": f"{job_role}", "company": "Swiggy", "platform": "Naukri",
-         "location": "Bangalore, India", "match_score": 85,
-         "url": "https://www.naukri.com/swiggy-software-developer-jobs",
-         "description": "Work on real-time order management systems handling millions of daily orders. Microservices and high-availability experience preferred.",
-         "justification": "Good match — your experience aligns with Swiggy's tech stack.",
-         "key_requirements": skill_tags},
-        {"title": f"Full Stack {job_role}", "company": "CRED", "platform": "LinkedIn",
-         "location": "Bangalore, India", "match_score": 82,
-         "url": "https://www.linkedin.com/jobs/cred-full-stack-developer",
-         "description": "Design and implement features for CRED's fintech platform. React + Node.js + Python stack preferred.",
-         "justification": "Full stack skills match CRED's hybrid engineering requirements.",
-         "key_requirements": skill_tags},
-        {"title": f"Backend {job_role}", "company": "Meesho", "platform": "Indeed",
-         "location": "Bangalore, India", "match_score": 80,
-         "url": "https://in.indeed.com/meesho-backend-developer-jobs",
-         "description": "Build scalable APIs serving 150M+ users. Experience with high-throughput systems and caching strategies required.",
-         "justification": "Backend experience maps well to Meesho's scale requirements.",
-         "key_requirements": skill_tags},
-        {"title": f"{job_role} - Product", "company": "Freshworks", "platform": "Glassdoor",
-         "location": "Chennai, India", "match_score": 78,
-         "url": "https://www.glassdoor.co.in/freshworks-software-engineer-jobs",
-         "description": "Join Freshworks' SaaS product team building CRM and customer support tools. Great culture and work-life balance.",
-         "justification": "SaaS product experience and your skills align with Freshworks' needs.",
-         "key_requirements": skill_tags},
-        {"title": f"Software Engineer II", "company": "PhonePe", "platform": "LinkedIn",
-         "location": "Bangalore, India", "match_score": 83,
-         "url": "https://www.linkedin.com/jobs/phonepe-software-engineer",
-         "description": "Build India's largest UPI payment platform. Work on high-scale distributed systems with 500M+ transactions/day.",
-         "justification": "Fintech and systems experience is a strong fit for PhonePe.",
-         "key_requirements": skill_tags},
-        {"title": f"Associate {job_role}", "company": "Zomato", "platform": "Naukri",
-         "location": "Gurgaon, India", "match_score": 75,
-         "url": "https://www.naukri.com/zomato-associate-developer-jobs",
-         "description": "Work on Zomato's customer-facing apps and internal tools. Good opportunity for mid-level engineers looking to grow.",
-         "justification": "Entry to mid-level role matching your current experience level.",
-         "key_requirements": skill_tags},
-        {"title": f"{job_role} - Platform", "company": "Flipkart", "platform": "Indeed",
-         "location": "Bangalore, India", "match_score": 77,
-         "url": "https://in.indeed.com/flipkart-platform-engineer-jobs",
-         "description": "Platform engineering team building tools and infrastructure for 1000+ internal engineers at Flipkart.",
-         "justification": "Platform and tooling skills match Flipkart's infrastructure needs.",
-         "key_requirements": skill_tags},
-    ]
-    return [_sanitize(t) for t in sorted(templates, key=lambda x: x["match_score"], reverse=True)]
-
-
 # ─── Sanitize ─────────────────────────────────────────────────────────────────
 def _sanitize(job: Dict) -> Dict:
     """Ensure all required JobMatch DB fields exist."""
@@ -376,49 +263,53 @@ def _sanitize(job: Dict) -> Dict:
 
 # ─── Main Entry ───────────────────────────────────────────────────────────────
 async def run_job_finder_agent(job_role: str, user_profile: Dict) -> List[Dict]:
-    """Main entry: Serper → Gemini ranking. Fallback to Gemini simulation if no key."""
-    print(f"[JobFinderAgent] ➔ Starting search: '{job_role}'")
+    """
+    Main entry: Queries live job portals via Serper API and scores them with Gemini.
+    Returns an empty list if Serper is unconfigured or returns no listings.
+    Never invents simulated jobs or fake URLs.
+    """
+    print(f"[JobFinderAgent] ➔ Starting live search for role: '{job_role}'")
+
+    if not settings.serper_api_key:
+        print("[JobFinderAgent] ➔ SERPER_API_KEY is not configured. Live job search disabled.")
+        return []
 
     all_snippets: List[Dict] = []
 
-    if settings.serper_api_key:
-        # Negative search operators to filter out expired listings across all platforms
-        EXCLUDE_CLOSED = '-"no longer accepting applications" -"job has expired" -"closed" -"not accepting applications"'
-        queries = [
-            # Direct modern ATS portals (Greenhouse, Lever, Ashby) — 100% active tech jobs
-            (f'"{job_role}" (site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com) (India OR "Remote") {EXCLUDE_CLOSED}', "Direct ATS"),
-            # LinkedIn /jobs/view/ = individual job posting with real description
-            (f'"{job_role}" site:linkedin.com/jobs/view (India OR Bangalore OR "Remote") {EXCLUDE_CLOSED}', "LinkedIn"),
-            # Naukri individual job detail pages
-            (f'"{job_role}" "apply" "experience" site:naukri.com -site:naukri.com/jobs {EXCLUDE_CLOSED}', "Naukri"),
-            # Indeed individual job pages
-            (f'"{job_role}" "job description" "responsibilities" site:in.indeed.com {EXCLUDE_CLOSED}', "Indeed"),
-            # Glassdoor individual job detail pages
-            (f'"{job_role}" "responsibilities" "requirements" site:glassdoor.co.in/job-listing {EXCLUDE_CLOSED}', "Glassdoor"),
-        ]
+    # Negative search operators to filter out expired listings across all platforms
+    EXCLUDE_CLOSED = '-"no longer accepting applications" -"job has expired" -"closed" -"not accepting applications"'
+    queries = [
+        # Direct modern ATS portals (Greenhouse, Lever, Ashby) — active tech jobs
+        (f'"{job_role}" (site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com) (India OR "Remote") {EXCLUDE_CLOSED}', "Direct ATS"),
+        # LinkedIn /jobs/view/ = individual job posting with real description
+        (f'"{job_role}" site:linkedin.com/jobs/view (India OR Bangalore OR "Remote") {EXCLUDE_CLOSED}', "LinkedIn"),
+        # Naukri individual job detail pages
+        (f'"{job_role}" "apply" "experience" site:naukri.com -site:naukri.com/jobs {EXCLUDE_CLOSED}', "Naukri"),
+        # Indeed individual job pages
+        (f'"{job_role}" "job description" "responsibilities" site:in.indeed.com {EXCLUDE_CLOSED}', "Indeed"),
+        # Glassdoor individual job detail pages
+        (f'"{job_role}" "responsibilities" "requirements" site:glassdoor.co.in/job-listing {EXCLUDE_CLOSED}', "Glassdoor"),
+    ]
 
-        results = await asyncio.gather(*[
-            fetch_serper(q, platform) for q, platform in queries
-        ])
-        for r in results:
-            all_snippets.extend(r)
+    results = await asyncio.gather(*[
+        fetch_serper(q, platform) for q, platform in queries
+    ])
+    for r in results:
+        all_snippets.extend(r)
 
-        print(f"[JobFinderAgent] ➔ Aggregated {len(all_snippets)} raw snippets.")
+    print(f"[JobFinderAgent] ➔ Aggregated {len(all_snippets)} live search snippets.")
 
-    if all_snippets:
-        scored = await scrape_and_rank_jobs(all_snippets, user_profile)
-        if not scored:
-            print("[JobFinderAgent] ➔ Gemini ranker returned 0 — trying simulation...")
-            scored = await generate_fallback_jobs(job_role, user_profile)
-    else:
-        scored = await generate_fallback_jobs(job_role, user_profile)
+    if not all_snippets:
+        print("[JobFinderAgent] ➔ No active job postings found on portals for this search.")
+        return []
 
-    # Last resort — static fallback (zero API calls, always works)
+    scored = await scrape_and_rank_jobs(all_snippets, user_profile)
     if not scored:
-        scored = static_fallback_jobs(job_role, user_profile.get("skills") or [])
+        print("[JobFinderAgent] ➔ No jobs could be parsed or matched against profile.")
+        return []
 
     sanitized = [_sanitize(j) for j in scored if j]
     sanitized.sort(key=lambda x: x["match_score"], reverse=True)
 
-    print(f"[JobFinderAgent] ➔ Returning {len(sanitized)} jobs.")
+    print(f"[JobFinderAgent] ➔ Returning {len(sanitized)} verified live jobs.")
     return sanitized

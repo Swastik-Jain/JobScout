@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 async def generate_agent_logs() -> AsyncGenerator[str, None]:
     """
     Generates realistic, technical streaming strings for the frontend terminal
-    in the 'Pulastya' multi-agent style.
+    in the 'JobScout' multi-agent style.
     """
     
     # Randomized counts to make logs feel dynamic per interaction
@@ -17,7 +17,7 @@ async def generate_agent_logs() -> AsyncGenerator[str, None]:
     
     # The sequential realistic log events
     logs = [
-        "[System] ➔ Booting Pulastya Multi-Agent Orchestrator Pipeline...",
+        "[System] ➔ Booting JobScout Multi-Agent Orchestrator Pipeline...",
         "[System] ➔ Establishing secure WebSocket telemetry stream.",
         f"[ProfileAgent] ➔ Structured {skills_count} skills and {projects_count} projects.",
         "[ProfileAgent] ➔ Normalized User Profile schema definitions.",
@@ -29,8 +29,8 @@ async def generate_agent_logs() -> AsyncGenerator[str, None]:
         "[ResumeAgent] ➔ Injecting domain-specific vocabulary and tailoring ATS semantics.",
         "[CriticAgent] ➔ Processing strict ATS Match Score evaluation algorithm...",
         "[CriticAgent] ➔ Validation complete. Resuming Approved. (Score: 92/100)",
-        "[ApplyAgent] ➔ Simulating end-to-end application... Bypassing CAPTCHA and filling dynamic form.",
-        "[ApplyAgent] ➔ Application submitted successfully and confirmation intercepted.",
+        "[ApplyAgent] ➔ Validating application form fields and formatting candidate submission.",
+        "[ApplyAgent] ➔ Application submitted successfully and confirmation recorded.",
         "[NotificationAgent] ➔ Pushing state logs to persistence tracking database.",
         "[System] ➔ Agent lifecycle complete. Awaiting next directive."
     ]

@@ -62,8 +62,8 @@ export const Login: React.FC = () => {
             <Fingerprint size={22} className="text-white" />
           </div>
           <div>
-            <span className="text-white font-bold text-xl tracking-tight">JobAgent</span>
-            <span className="text-xs text-zinc-500 font-mono ml-2">v2.0</span>
+            <span className="text-white font-bold text-xl tracking-tight">JobScout</span>
+            <span className="text-xs text-blue-400 font-mono ml-2 font-semibold">AI</span>
           </div>
         </div>
 
@@ -101,7 +101,7 @@ export const Login: React.FC = () => {
 
         {/* Bottom note */}
         <p className="text-zinc-600 text-sm relative z-10">
-          &copy; 2025 JobAgent. All agent activity is logged & encrypted.
+          &copy; 2025 JobScout AI. All agent activity is logged & encrypted.
         </p>
       </div>
 
@@ -121,7 +121,7 @@ export const Login: React.FC = () => {
             <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
               <Fingerprint size={18} className="text-white" />
             </div>
-            <span className="text-white font-bold text-xl">JobAgent</span>
+            <span className="text-white font-bold text-xl">JobScout AI</span>
           </div>
 
           <h2 className="text-4xl font-bold text-white mb-2">

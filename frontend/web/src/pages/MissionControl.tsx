@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Rocket, Clock, CheckCircle2, AlertCircle,
+  Rocket, Clock, CheckCircle2,
   ShieldAlert, ShieldCheck, ShieldOff, Shield,
   EyeOff, X, AlertTriangle, ExternalLink,
   Building2, MapPin, Zap, Info, ChevronDown, ChevronUp,
-  Search, Filter,
+  Search, Filter, Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
@@ -676,127 +676,13 @@ const StatsCard: React.FC<{
   </div>
 );
 
-// ─── Simulation Dataset ───────────────────────────────────────────────────────
-/**
- * Original 8-record simulation dataset used when no real API data is available.
- * Deterministically verified against analyzeJobScamRisk():
- *   3 SAFE · 2 WARNING · 3 BLOCKED
- * Used to showcase all fraud-detection states in the UI.
- */
-function getSimulationDataset(): ApplicationRecord[] {
-  const now = Date.now();
-  return [
-    // ── ✅ SAFE — score ~0 ────────────────────────────────────────────────────
-    {
-      id: 1, job_id: 101,
-      job_title: 'Senior React Developer',
-      company: 'TechCorp Inc.',
-      platform: 'LinkedIn', status: 'Interview', ats_score: 88,
-      applied_at: new Date(now - 3_600_000).toISOString(),
-      location: 'Bangalore, India',
-      url: 'https://www.linkedin.com/jobs/view/senior-react-developer-techcorp',
-      description:
-        'We are looking for an experienced React Developer with 5+ years building scalable '
-        + 'web applications using React, TypeScript, and modern tooling. Competitive salary, '
-        + 'remote-friendly, and a great engineering culture.',
-    },
-    {
-      id: 3, job_id: 103,
-      job_title: 'Full Stack Engineer',
-      company: 'Startup Ventures',
-      platform: 'Indeed', status: 'Applied', ats_score: 91,
-      applied_at: new Date(now - 86_400_000).toISOString(),
-      location: 'Remote',
-      url: 'https://in.indeed.com/viewjob?jk=fullstack-startup-ventures',
-      description:
-        'Join our engineering team to build the next generation platform. We use Node.js, '
-        + 'React, PostgreSQL, and AWS. Competitive salary and equity offered.',
-    },
-    {
-      id: 5, job_id: 105,
-      job_title: 'Backend Python Engineer',
-      company: 'DataSystems Ltd',
-      platform: 'Naukri', status: 'Applied', ats_score: 82,
-      applied_at: new Date(now - 259_200_000).toISOString(),
-      location: 'Hyderabad, India',
-      url: 'https://www.naukri.com/job-listings-backend-python-datasystems',
-      description:
-        'Python backend engineer role with 3+ years of experience in FastAPI, Django, '
-        + 'microservices architecture, and cloud deployments on GCP.',
-    },
-
-    // ── ⚠️ WARNING — score ~37–52 ─────────────────────────────────────────────
-    // anonymous (+20) + raw email (+12) + vague desc <80 chars (+15) + no location (+5) = 52
-    {
-      id: 6, job_id: 106,
-      job_title: 'Online Data Entry Coordinator',
-      company: 'Confidential',
-      platform: 'OLX', status: 'Pending', ats_score: 55,
-      applied_at: new Date(now - 43_200_000).toISOString(),
-      url: 'https://www.olx.in/item/data-entry-coordinator-ID34512',
-      description: 'Data entry tasks. Contact: applynow.jobs2024@gmail.com for details.',
-    },
-    // "agent" in title (+20) + anonymous company (+20) + no location (+5) = 45
-    {
-      id: 7, job_id: 107,
-      job_title: 'Social Media Brand Agent',
-      company: '',
-      platform: 'Facebook Jobs', status: 'Pending', ats_score: 42,
-      applied_at: new Date(now - 129_600_000).toISOString(),
-      url: 'https://www.facebook.com/jobs/social-media-brand-agent',
-      description:
-        'Manage social media accounts for our growing brand. Flexible hours, work from home. '
-        + 'Contact our recruitment team for further details about compensation and role scope.',
-    },
-
-    // ── 🛑 BLOCKED — score ≥60 ────────────────────────────────────────────────
-    // scam keyword (+35) + whatsapp (+30) + anonymous employer (+20) = 85
-    {
-      id: 2, job_id: 102,
-      job_title: 'Work From Home Earn $3000 Weekly',
-      company: 'Unknown',
-      platform: 'Unknown', status: 'Applied', ats_score: 45,
-      applied_at: new Date(now - 7_200_000).toISOString(),
-      location: 'Remote (India)',
-      url: 'https://earn3000weekly.info/apply',
-      description:
-        'No experience required earn guaranteed income working from home. '
-        + 'Contact us on whatsapp immediately. Pay registration fee of $50 to get started.',
-    },
-    // "reshipping" in title (+20) + $500/day salary (+30) + telegram (+30) = 80
-    {
-      id: 4, job_id: 104,
-      job_title: 'Package Reshipping Agent',
-      company: 'GlobalShip Co',
-      platform: 'Craigslist', status: 'Pending', ats_score: 30,
-      applied_at: new Date(now - 172_800_000).toISOString(),
-      url: 'https://craigslist.org/jobs/package-reshipping-agent',
-      description:
-        'Work from home reshipping packages earn $500/day. '
-        + 'Reach out to our Telegram recruiter to get started immediately.',
-    },
-    // "crypto trading agent" (+35) + "dm us" (+30) + empty company (+20) + unknown platform (+5) = 90
-    {
-      id: 8, job_id: 108,
-      job_title: 'Crypto Trading Agent — Unlimited Earnings',
-      company: '',
-      platform: 'Unknown', status: 'Applied', ats_score: 22,
-      applied_at: new Date(now - 302_400_000).toISOString(),
-      url: 'https://t.me/cryptotrading_earn',
-      description:
-        'Join our crypto trading agent network and earn unlimited income. '
-        + 'Multi-level marketing opportunity. DM us on Instagram to onboard instantly.',
-    },
-  ];
-}
-
 // ─── Main MissionControl ───────────────────────────────────────────────────────
 export const MissionControl: React.FC = () => {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
-  const [isDemo, setIsDemo] = useState(false);  // true when showing simulation data
+  const [agentScanning, setAgentScanning] = useState(false);
 
   // Risk stats (computed after analysis — updated per row but summarized here)
   const [riskCounts, setRiskCounts] = useState({ blocked: 0, warning: 0, safe: 0 });
@@ -816,19 +702,20 @@ export const MissionControl: React.FC = () => {
     url: job.url ?? '',
   });
 
-  // Silently trigger the job finder agent in the background
+  // Trigger live job scan
   const triggerJobFetch = useCallback(async () => {
+    setAgentScanning(true);
     try {
       await api.get('/fetch-jobs');
-      // Re-load jobs after agent completes — replace simulation with real data
       const jobsRes = await api.get('/jobs');
       const jobs: any[] = jobsRes.data || [];
       if (jobs.length > 0) {
-        setIsDemo(false);
         setApplications(jobs.map(jobMatchToAppRecord));
       }
     } catch (e) {
-      console.warn('[MissionControl] Background job fetch failed:', e);
+      console.warn('[MissionControl] Live job fetch failed:', e);
+    } finally {
+      setAgentScanning(false);
     }
   }, []);
 
@@ -845,7 +732,6 @@ export const MissionControl: React.FC = () => {
           const jobsRes = await api.get('/jobs');
           const jobsMap = new Map<number, any>();
           (jobsRes.data || []).forEach((j: any) => jobsMap.set(j.id, j));
-          setIsDemo(false);
           setApplications(appsData.map(a => {
             const job = jobsMap.get(a.job_id);
             return {
@@ -856,41 +742,21 @@ export const MissionControl: React.FC = () => {
             };
           }));
         } catch {
-          setIsDemo(false);
           setApplications(appsData);
         }
       } else {
-        // 2. No application history — use jobs from job_finder_agent directly
+        // 2. No application history — check real jobs from DB
         const jobsRes = await api.get('/jobs');
         const jobs: any[] = jobsRes.data || [];
         if (jobs.length > 0) {
-          setIsDemo(false);
           setApplications(jobs.map(jobMatchToAppRecord));
         } else {
-          // 3. DB is empty — show simulation, trigger agent quietly in background
-          setIsDemo(true);
-          setApplications(getSimulationDataset());
-          triggerJobFetch();
+          // No records — display clean empty state (no simulation)
+          setApplications([]);
         }
       }
     } catch {
-      // Network/auth error — still try /jobs as fallback
-      try {
-        const jobsRes = await api.get('/jobs');
-        const jobs: any[] = jobsRes.data || [];
-        if (jobs.length > 0) {
-          setIsDemo(false);
-          setApplications(jobs.map(jobMatchToAppRecord));
-        } else {
-          setIsDemo(true);
-          setApplications(getSimulationDataset());
-          triggerJobFetch();
-        }
-      } catch {
-        // Full offline fallback — simulation only
-        setIsDemo(true);
-        setApplications(getSimulationDataset());
-      }
+      setApplications([]);
     } finally {
       setLoading(false);
     }
@@ -973,31 +839,6 @@ export const MissionControl: React.FC = () => {
         />
       </div>
 
-      {/* ── Simulation Mode Banner (shown only when using synthetic data) ── */}
-      {isDemo && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-3 px-5 py-4 bg-purple-950/30 border border-purple-700/30 rounded-xl"
-        >
-          <div className="w-8 h-8 rounded-lg bg-purple-900/40 border border-purple-700/40 flex items-center justify-center shrink-0 mt-0.5">
-            <Zap size={16} className="text-purple-400" />
-          </div>
-          <div className="flex-1">
-            <p className="text-purple-300 font-semibold text-sm">Simulation Mode — Fraud Detection Demo</p>
-            <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
-              No real applications found. Showing <span className="text-white font-medium">8 synthetic listings</span>: &nbsp;
-              <span className="text-green-400 font-medium">3 SAFE</span>,&nbsp;
-              <span className="text-yellow-400 font-medium">2 WARNING</span>, and&nbsp;
-              <span className="text-red-400 font-medium">3 BLOCKED</span> — to demonstrate all detection states.
-              Click any row to see the full fraud analysis.
-            </p>
-          </div>
-          <span className="text-xs font-bold font-mono px-2 py-1 bg-purple-900/40 border border-purple-700/40 text-purple-300 rounded-lg shrink-0">
-            DEMO
-          </span>
-        </motion.div>
-      )}
 
       {/* ── Security Engine Banner ── */}
       <motion.div
@@ -1011,7 +852,7 @@ export const MissionControl: React.FC = () => {
         <div className="flex-1 text-sm">
           <span className="text-blue-300 font-semibold">Fraud Detection Engine Active</span>
           <span className="text-zinc-400 ml-2">
-            · Scanning {applications.length} {isDemo ? 'simulated' : ''} application{applications.length !== 1 ? 's' : ''} for scam patterns in real-time
+            · Real-time scam analysis across {applications.length} listing{applications.length !== 1 ? 's' : ''}
           </span>
         </div>
         <div className="flex items-center gap-2 text-xs text-blue-400 font-mono shrink-0">
@@ -1067,15 +908,33 @@ export const MissionControl: React.FC = () => {
             <p className="text-zinc-500 text-sm font-mono">Loading applications...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 flex flex-col items-center justify-center text-center space-y-2">
-            <AlertCircle size={24} className="text-zinc-700" />
-            <p className="text-zinc-500 text-sm font-mono">
-              {applications.length === 0
-                ? isDemo
-                  ? 'No real applications yet. The simulation above demonstrates fraud detection.'
-                  : 'No results match your filter.'
-                : 'No results match your filter.'}
-            </p>
+          <div className="py-20 flex flex-col items-center justify-center text-center space-y-3 px-4">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center text-zinc-500">
+              <ShieldCheck size={24} className="text-zinc-600" />
+            </div>
+            <div>
+              <p className="text-zinc-200 font-semibold text-base">
+                {applications.length === 0 ? 'No applications or tracked jobs yet' : 'No results match your filter'}
+              </p>
+              <p className="text-zinc-500 text-sm mt-1 max-w-md">
+                {applications.length === 0
+                  ? 'Scan for live job opportunities or submit applications from the dashboard to track real-time scam scoring.'
+                  : 'Try adjusting your search query or status filter.'}
+              </p>
+            </div>
+            {applications.length === 0 && (
+              <button
+                onClick={triggerJobFetch}
+                disabled={agentScanning}
+                className="mt-3 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 shadow-lg shadow-blue-900/20"
+              >
+                {agentScanning ? (
+                  <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> Scanning live portals...</>
+                ) : (
+                  <><Sparkles size={14} /> Scan Live Opportunities</>
+                )}
+              </button>
+            )}
           </div>
         ) : (
           <div>

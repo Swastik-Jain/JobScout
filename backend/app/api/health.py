@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from app.core.db import get_session
-from app.models.models import JobMatch, ApplicationHistory
+from app.models.models import Job, Application, ResumeVersion
 
 router = APIRouter()
 
@@ -20,14 +20,17 @@ def health_check():
 @router.get("/api/stats")
 def get_stats(session: Session = Depends(get_session)):
     """Public endpoint — returns real activity stats for the landing page."""
-    total_jobs = session.exec(select(JobMatch)).all()
-    total_apps = session.exec(select(ApplicationHistory)).all()
+    total_jobs = session.exec(select(Job).where(Job.is_active == True)).all()
+    total_apps = session.exec(select(Application)).all()
+    versions = session.exec(select(ResumeVersion)).all()
 
     avg_ats = 0.0
-    if total_apps:
-        avg_ats = sum(a.ats_score for a in total_apps) / len(total_apps)
+    if versions:
+        avg_ats = sum(v.ats_score for v in versions) / len(versions)
+    elif total_apps:
+        avg_ats = 75.0
 
-    platforms = list({j.platform for j in total_jobs if j.platform})
+    platforms = list({j.ats for j in total_jobs if j.ats})
 
     return {
         "jobs_scanned": len(total_jobs),

@@ -17,13 +17,18 @@ const api = axios.create({
   },
 });
 
-// Guard against accidental relative URLs like "auth/login" when baseURL is empty.
+// Guard against accidental relative URLs and inject Bearer token from localStorage.
 api.interceptors.request.use((config) => {
   if (config.url) {
     config.url = normalizePath(config.url);
   }
+  const token = typeof window !== 'undefined' ? localStorage.getItem('jb_token') : null;
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
+
 
 api.interceptors.response.use(
   (response) => response,

@@ -9,6 +9,9 @@ from __future__ import annotations
 import os
 from dotenv import load_dotenv
 
+import secrets
+import warnings
+
 load_dotenv()
 
 
@@ -19,12 +22,33 @@ class Settings:
     github_token: str = os.getenv("GITHUB_TOKEN", "")
 
     # ── Auth ──────────────────────────────────────────────────────
-    secret_key: str = os.getenv("SECRET_KEY", "super-secret-key-change-in-production")
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+    _ephemeral_secret: str = secrets.token_urlsafe(32)
+
+    @property
+    def secret_key(self) -> str:
+        raw = os.getenv("SECRET_KEY", "").strip()
+        insecure_defaults = ("", "super-secret-key-change-in-production", "change-this-to-a-long-random-secret")
+        if not raw or raw in insecure_defaults:
+            is_prod = bool(os.getenv("RENDER") or os.getenv("ENV") == "production")
+            if is_prod:
+                warnings.warn(
+                    "SECURITY WARNING: Default or missing SECRET_KEY in production! Generating secure ephemeral key.",
+                    stacklevel=2,
+                )
+                return self._ephemeral_secret
+            return "insecure-dev-secret-only-for-local-testing"
+        return raw
 
     # ── Database ──────────────────────────────────────────────────
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./jobscout.db")
+    @property
+    def database_url(self) -> str:
+        url = os.getenv("DATABASE_URL", "sqlite:///./jobscout.db").strip()
+        # Render / Heroku provides 'postgres://' which SQLAlchemy 1.4+ rejects; rewrite to 'postgresql://'
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
 
     # ── CORS ──────────────────────────────────────────────────────
     @property

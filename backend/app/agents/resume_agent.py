@@ -9,12 +9,18 @@ transient 503/500 errors.
 import json
 import time
 import random
+import asyncio
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 from google import genai
 from google.genai import types
 
 from app.core.config import settings
+from app.services.resume_validator import (
+    render_deterministic_base_resume,
+    validate_no_fabrication,
+    compute_ats_score,
+)
 
 # Ordered fallback chain: fastest/cheapest first
 MODEL_FALLBACK_CHAIN = [
@@ -100,10 +106,11 @@ Your task:
 7. Score the resume honestly against the job description
 
 CRITICAL RULES:
+- NO FABRICATION (STRICT): NEVER invent, assume, or hallucinate employers, companies, universities, degrees, or projects not in the user profile. You may only reword and emphasize action verbs and keywords under existing verified entries.
 - Output STRICT JSON with keys: resume_md, ats_score, improvements
 - resume_md must be the FULL resume text, properly formatted — never truncate it
 - If user has no experience, create a strong student/fresher format with projects highlighted
-- If a section has no data, write a best-effort placeholder based on available context
+- If a section has no data, leave it empty or omitted — never invent data
 - Never return placeholder bracket text like [Full Name] — always fill with real data
 - ats_score must be an integer 0-100
 
@@ -119,8 +126,14 @@ Return ONLY this JSON structure:
 }"""
 
 
-def _make_client() -> genai.Client:
-    return genai.Client(api_key=settings.google_api_key)
+def _make_client() -> Optional[genai.Client]:
+    if not settings.google_api_key:
+        return None
+    try:
+        return genai.Client(api_key=settings.google_api_key)
+    except Exception as e:
+        print(f"[ResumeAgent] Warning: could not initialize Gemini client: {e}")
+        return None
 
 
 class ResumeAgent:
@@ -184,17 +197,13 @@ class ResumeAgent:
 
         return "\n".join(lines)
 
-    def _call_model(self, model_name: str, prompt: str) -> ResumeAgentOutput:
-        """Call Gemini via new google.genai SDK with JSON output mode.
-
-        Retries up to MAX_RETRIES times on transient 503/500 errors using
-        exponential backoff + jitter before raising.
-        """
+    async def _call_model_async(self, model_name: str, prompt: str) -> ResumeAgentOutput:
+        """Call Gemini via new google.genai async client without blocking event loop."""
         last_error = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                print(f"[ResumeAgent] ➔ [{model_name}] attempt {attempt}/{MAX_RETRIES}...")
-                response = self.client.models.generate_content(
+                print(f"[ResumeAgent] ➔ [{model_name}] attempt {attempt}/{MAX_RETRIES} (async)...")
+                response = await self.client.aio.models.generate_content(
                     model=model_name,
                     contents=prompt,
                     config=types.GenerateContentConfig(
@@ -217,20 +226,20 @@ class ResumeAgent:
                     delay = BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
                     print(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), "
                           f"retrying in {delay:.1f}s... Error: {err_str[:120]}")
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
                 else:
                     raise
         if last_error is not None:
             raise last_error
         raise RuntimeError(f"Failed to generate resume with {model_name}")
 
-    def generate_resume(
+    async def a_generate_resume(
         self,
         user_profile: Dict,
         job_description: str,
         critic_feedback: Optional[str] = None,
     ) -> ResumeAgentOutput:
-
+        """Asynchronous, non-blocking resume generation."""
         profile_text = self._build_profile_text(user_profile)
         prompt = (
             f"RESUME FORMAT TEMPLATE:\n{RESUME_FORMAT}\n\n"
@@ -242,11 +251,37 @@ class ResumeAgent:
                 f"\n━━━━━━━━━━━━━━━\n"
                 f"CRITIC FEEDBACK — MUST ADDRESS IN THIS VERSION:\n{critic_feedback}\n"
             )
+        base_resume = render_deterministic_base_resume(user_profile)
+        user_skills = user_profile.get("skills") or []
+
+        if not self.client:
+            print("[ResumeAgent] ➔ Gemini API key not configured — using deterministic baseline resume.")
+            fallback_ats, _ = compute_ats_score(base_resume, job_description, user_skills)
+            return ResumeAgentOutput(
+                resume_md=base_resume,
+                ats_score=fallback_ats,
+                improvements=["Gemini API key not configured — served verified deterministic baseline resume."],
+            )
+
         chain = [self.model_name] + [m for m in MODEL_FALLBACK_CHAIN if m != self.model_name]
         for model in chain:
             try:
                 print(f"[ResumeAgent] ➔ Generating resume with {model}...")
-                return self._call_model(model, prompt)
+                out = await self._call_model_async(model, prompt)
+                
+                # Enforce no fabrication on the generated resume
+                is_valid, errors = validate_no_fabrication(out.resume_md, user_profile)
+                if not is_valid:
+                    print(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile.")
+                    out.resume_md = base_resume
+                    out.improvements.append("Reverted unverified modifications to preserve strict candidate accuracy.")
+
+                # Guarantee realistic ATS score
+                if out.ats_score <= 0:
+                    ats_score, _ = compute_ats_score(out.resume_md, job_description, user_skills)
+                    out.ats_score = ats_score
+
+                return out
             except Exception as e:
                 err = str(e)
                 is_quota = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
@@ -260,8 +295,43 @@ class ResumeAgent:
                     print(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model...")
                 else:
                     print(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
-                    return ResumeAgentOutput(resume_md=f"Resume generation failed — error: {err}", ats_score=0, improvements=[])
-        return ResumeAgentOutput(resume_md="Resume generation failed — all models currently unavailable.", ats_score=0, improvements=["Retry in a few minutes."])
+                    ats_score, _ = compute_ats_score(base_resume, job_description, user_skills)
+                    return ResumeAgentOutput(
+                        resume_md=base_resume,
+                        ats_score=ats_score,
+                        improvements=[f"LLM error: {err} — served verified baseline resume."],
+                    )
+
+        fallback_ats, _ = compute_ats_score(base_resume, job_description, user_skills)
+        return ResumeAgentOutput(
+            resume_md=base_resume,
+            ats_score=fallback_ats,
+            improvements=["AI generation quota reached — served verified deterministic baseline resume."],
+        )
+
+    def generate_resume(
+        self,
+        user_profile: Dict,
+        job_description: str,
+        critic_feedback: Optional[str] = None,
+    ) -> ResumeAgentOutput:
+        """Synchronous compatibility wrapper using thread pool to avoid loop blocking."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    return pool.submit(
+                        asyncio.run,
+                        self.a_generate_resume(user_profile, job_description, critic_feedback)
+                    ).result()
+            return loop.run_until_complete(
+                self.a_generate_resume(user_profile, job_description, critic_feedback)
+            )
+        except Exception:
+            return asyncio.run(
+                self.a_generate_resume(user_profile, job_description, critic_feedback)
+            )
 
     def critic_agent(self, resume_output: ResumeAgentOutput) -> Dict:
         score = resume_output.ats_score

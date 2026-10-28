@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const stored = localStorage.getItem('jb_token');
     if (!stored) { setIsLoading(false); return; }
     try {
-      const res = await api.get(`/profile/me?token=${stored}`);
+      const res = await api.get('/profile/me');
       setUser(res.data);
     } catch {
       localStorage.removeItem('jb_token');
@@ -74,10 +74,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (data: Partial<UserProfile>) => {
     const stored = localStorage.getItem('jb_token');
     if (!stored) throw new Error('Not authenticated');
-    await api.put(`/profile/me?token=${stored}`, data);
+    await api.put('/profile/me', data);
     // Re-fetch the full profile from server to guarantee UI shows persisted data
     await refreshProfile();
   };
+
 
   return (
     <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, updateProfile, refreshProfile }}>

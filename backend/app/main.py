@@ -21,7 +21,7 @@ app = FastAPI(title="Autonomous Job Application System API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:\d+|http://127\.0\.0\.1:\d+",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,8 +29,24 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     init_db()
+    # Launch background ATS feed ingestion if database is fresh
+    import asyncio
+    from app.core.db import engine
+    from sqlmodel import Session, select
+    from app.models.models import IngestedJob
+    from app.tools.ats_adapters import sync_all_active_sources
+
+    async def _bg_initial_sync():
+        with Session(engine) as session:
+            has_jobs = session.exec(select(IngestedJob)).first()
+            if not has_jobs:
+                print("[Startup] IngestedJob table empty. Initiating first-time background feed sync...")
+                await sync_all_active_sources(session)
+
+    asyncio.create_task(_bg_initial_sync())
+
 
 
 from fastapi import Request
@@ -40,18 +56,26 @@ import traceback
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    tb = traceback.format_exc()
-    print("UNHANDLED SERVER ERROR:", exc)
-    print(tb)
+    import logging
+    logging.exception("Unhandled server exception on %s %s: %s", request.method, request.url.path, exc)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}", "trace": tb},
+        content={"detail": "An internal server error occurred."},
     )
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
+from app.api.health import router as health_router
+from app.api.auth import router as auth_router
+from app.api.profile import router as profile_router
+from app.api.jobs import router as jobs_router
+from app.api.resume import router as resume_router
+from app.api.applications import router as applications_router
+
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(jobs_router)
 app.include_router(resume_router)
+app.include_router(applications_router)
+

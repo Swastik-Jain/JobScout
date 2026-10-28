@@ -1,0 +1,40 @@
+{
+  "greenhouse": [
+    "canonical",
+    "inmobi",
+    "rubrik",
+    "groww",
+    "gitlab",
+    "cloudflare",
+    "datadog",
+    "elastic",
+    "stripe",
+    "mongodb",
+    "figma",
+    "airbnb",
+    "dropbox",
+    "coinbase",
+    "gusto",
+    "brex",
+    "carta",
+    "affirm",
+    "instacart",
+    "robinhood"
+  ],
+  "lever": [
+    "spotify",
+    "palantir"
+  ],
+  "ashby": [
+    "linear",
+    "ramp",
+    "vanta",
+    "notion",
+    "perplexity",
+    "quora",
+    "cohere",
+    "cursor",
+    "resend",
+    "supabase"
+  ]
+}

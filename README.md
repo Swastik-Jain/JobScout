@@ -88,17 +88,18 @@ npm run dev                     # starts at http://localhost:5173
 
 ---
 
-## 🧠 Tech Stack
-
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, TypeScript, Vite, TailwindCSS, Framer Motion |
-| Backend | FastAPI, LangGraph, SQLModel (SQLite) |
-| AI Agents | Google Gemini 1.5 Flash / Pro |
-| Job Search | Serper.dev API |
-| Auth | JWT (python-jose) + bcrypt |
+| Backend | FastAPI, LangGraph, SQLModel (SQLite / Postgres) |
+| AI Agents | Google Gemini 2.0 Flash / 1.5 Flash via `google-genai` |
+| Job Sourcing | Public ATS Job Board APIs (Greenhouse, Lever, Ashby) + Offline Discovery |
+| Materials | AST Entity Validator (No-Fabrication) + `python-docx` Export |
+| Lifecycle | Human-in-the-Loop state machine with transition audit timeline |
+| Auth | JWT (python-jose) HTTPBearer + bcrypt |
 
 ---
 
 ## 📄 License
 MIT
+

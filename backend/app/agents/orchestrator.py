@@ -40,7 +40,7 @@ def profile_agent(state: AgentState):
     }
 
 
-def resume_agent_node(state: AgentState):
+async def resume_agent_node(state: AgentState):
     from app.agents.resume_agent import ResumeAgent
 
     agent = ResumeAgent()
@@ -49,7 +49,7 @@ def resume_agent_node(state: AgentState):
     profile = state["user_profile"]
     feedback = state.get("critic_feedback") or None
 
-    result = agent.generate_resume(profile, job_desc, feedback)
+    result = await agent.a_generate_resume(profile, job_desc, feedback)
 
     return {
         "resume_md": result.resume_md,

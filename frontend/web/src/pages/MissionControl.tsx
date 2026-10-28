@@ -4,10 +4,12 @@ import {
   ShieldAlert, ShieldCheck, ShieldOff, Shield,
   EyeOff, X, AlertTriangle, ExternalLink,
   Building2, MapPin, Zap, Info, ChevronDown, ChevronUp,
-  Search, Filter, Sparkles,
+  Search, Filter, FileText,
+  LayoutGrid, List, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
+import { ReviewModal } from '../components/ReviewModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ApplicationRecord {
@@ -22,7 +24,9 @@ interface ApplicationRecord {
   url?: string;
   location?: string;
   description?: string;
+  is_active_on_ats?: boolean;
 }
+
 
 type RiskLevel = 'BLOCKED' | 'WARNING' | 'SAFE' | 'SCANNING';
 
@@ -190,19 +194,19 @@ const RiskBadge: React.FC<{ level: RiskLevel; score?: number; small?: boolean }>
   const cfg = {
     BLOCKED: {
       icon: ShieldOff,
-      label: 'BLOCKED',
+      label: 'HEURISTIC: BLOCKED',
       cls: 'bg-red-950/50 border-red-700/50 text-red-400',
       dot: 'bg-red-500',
     },
     WARNING: {
       icon: ShieldAlert,
-      label: 'WARNING',
+      label: 'HEURISTIC: WARNING',
       cls: 'bg-yellow-950/50 border-yellow-700/50 text-yellow-400',
       dot: 'bg-yellow-500',
     },
     SAFE: {
       icon: ShieldCheck,
-      label: 'SAFE',
+      label: 'HEURISTIC: SAFE',
       cls: 'bg-green-950/50 border-green-700/50 text-green-400',
       dot: 'bg-green-500',
     },
@@ -216,7 +220,10 @@ const RiskBadge: React.FC<{ level: RiskLevel; score?: number; small?: boolean }>
 
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1.5 border rounded-lg font-bold ${cfg.cls} ${small ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs'}`}>
+    <span
+      title="Automated pattern heuristic check against job fraud indicators"
+      className={`inline-flex items-center gap-1.5 border rounded-lg font-bold ${cfg.cls} ${small ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'}`}
+    >
       <Icon size={small ? 10 : 12} />
       {cfg.label}
       {score !== undefined && !small && (
@@ -422,7 +429,11 @@ const WarningModal: React.FC<{
 );
 
 // ─── Application Row ──────────────────────────────────────────────────────────
-const ApplicationRow: React.FC<{ app: ApplicationRecord; index: number }> = ({ app, index }) => {
+const ApplicationRow: React.FC<{
+  app: ApplicationRecord;
+  index: number;
+  onRefresh?: () => void;
+}> = ({ app, index, onRefresh }) => {
   const [analysis, setAnalysis] = useState<RiskAnalysis | null>(null);
   const [scanning, setScanning] = useState(true);
   const [showBlock, setShowBlock] = useState(false);
@@ -430,6 +441,8 @@ const ApplicationRow: React.FC<{ app: ApplicationRecord; index: number }> = ({ a
   const [expanded, setExpanded] = useState(false);
   const [overridden, setOverridden] = useState(false);   // user forced view past block
   const [warningAcknowledged, setWarningAcknowledged] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     // Simulate async scanning delay for UX realism
@@ -442,11 +455,22 @@ const ApplicationRow: React.FC<{ app: ApplicationRecord; index: number }> = ({ a
     return () => clearTimeout(t);
   }, [app, index]);
 
-  const statusStyles: Record<string, string> = {
-    Applied: 'text-green-400 bg-green-400/10 border-green-400/20',
-    Pending: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-    Interview: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-    Rejected: 'text-red-400 bg-red-400/10 border-red-400/20',
+  const isStale =
+
+    app.status.toLowerCase() === 'applied' &&
+    app.applied_at &&
+    Date.now() - new Date(app.applied_at).getTime() > 7 * 24 * 3600 * 1000;
+
+  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStatus = e.target.value;
+    try {
+      setStatusError(null);
+      await api.post(`/applications/${app.id}/transition`, { to_status: newStatus });
+      onRefresh?.();
+    } catch (err: any) {
+      setStatusError(err?.response?.data?.detail || 'Invalid transition');
+      setTimeout(() => setStatusError(null), 3500);
+    }
   };
 
   const handleRowClick = () => {
@@ -532,10 +556,43 @@ const ApplicationRow: React.FC<{ app: ApplicationRecord; index: number }> = ({ a
                   <span className="blur-sm select-none">{app.job_title}</span>
                 ) : app.job_title}
               </p>
-              <span className={`px-2 py-0.5 rounded-lg border text-xs font-semibold ${statusStyles[app.status] || statusStyles.Pending}`}>
-                {app.status}
-              </span>
+
+              {/* Status transition dropdown */}
+              <select
+                value={app.status.toLowerCase()}
+                onClick={e => e.stopPropagation()}
+                onChange={handleStatusChange}
+                className="px-2 py-0.5 rounded-lg border text-xs font-semibold bg-zinc-900 border-zinc-700 text-zinc-200 focus:outline-none cursor-pointer"
+              >
+                {['saved', 'prepared', 'applied', 'interviewing', 'accepted', 'declined', 'rejected', 'ghosted', 'withdrawn'].map(s => (
+                  <option key={s} value={s}>{s.toUpperCase()}</option>
+                ))}
+              </select>
+
+              {isStale && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/60 border border-amber-800 text-amber-300">
+                  7d+ Follow Up
+                </span>
+              )}
+
+              {app.is_active_on_ats === false && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/60 border border-red-800 text-red-300">
+                  Closed on ATS
+                </span>
+              )}
+
+              {statusError && (
+                <span className="text-red-400 text-xs font-medium">({statusError})</span>
+              )}
+
+              <button
+                onClick={(e) => { e.stopPropagation(); setReviewOpen(true); }}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-xs font-semibold transition"
+              >
+                <FileText size={12} /> Review & Apply
+              </button>
             </div>
+
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               <span className="text-zinc-400 text-xs flex items-center gap-1">
                 <Building2 size={10} />
@@ -652,6 +709,176 @@ const ApplicationRow: React.FC<{ app: ApplicationRecord; index: number }> = ({ a
           )}
         </AnimatePresence>
       </motion.div>
+
+
+      {reviewOpen && (
+
+        <ReviewModal
+          applicationId={app.id}
+          job={{
+            id: app.job_id,
+            title: app.job_title,
+            company: app.company,
+            url: app.url || '',
+            location: app.location,
+          }}
+          isOpen={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          onStatusUpdated={() => onRefresh?.()}
+        />
+      )}
+    </>
+  );
+};
+
+// ─── Kanban Definitions & Card ───────────────────────────────────────────────
+const KANBAN_COLUMNS = [
+  { id: 'saved', label: 'Saved', color: 'border-zinc-700 bg-zinc-900/60 text-zinc-300' },
+  { id: 'prepared', label: 'Prepared', color: 'border-blue-700/60 bg-blue-950/40 text-blue-300' },
+  { id: 'applied', label: 'Applied', color: 'border-emerald-700/60 bg-emerald-950/40 text-emerald-300' },
+  { id: 'interviewing', label: 'Interviewing', color: 'border-purple-700/60 bg-purple-950/40 text-purple-300' },
+  { id: 'closed', label: 'Offer / Decided', color: 'border-zinc-800 bg-zinc-900/40 text-zinc-400' },
+];
+
+function getColumnForStatus(status: string): string {
+  const s = (status || '').toLowerCase().trim();
+  if (s === 'saved') return 'saved';
+  if (s === 'prepared') return 'prepared';
+  if (s === 'applied') return 'applied';
+  if (s === 'interviewing') return 'interviewing';
+  return 'closed'; // accepted, declined, rejected, ghosted, withdrawn
+}
+
+const KanbanCard: React.FC<{
+  app: ApplicationRecord;
+  analysis: RiskAnalysis;
+  onRefresh: () => void;
+  duplicateCompany: boolean;
+  isStale: boolean;
+}> = ({ app, analysis, onRefresh, duplicateCompany, isStale }) => {
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      setTransitioning(true);
+      setStatusError(null);
+      await api.patch(`/applications/${app.id}`, { status: newStatus });
+      onRefresh();
+    } catch (err: any) {
+      setStatusError(err?.response?.data?.detail || 'Invalid transition');
+      setTimeout(() => setStatusError(null), 3500);
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="glass p-4 rounded-xl border border-zinc-800/80 hover:border-zinc-700/80 space-y-3 transition group relative"
+      >
+        <div>
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-white text-sm font-semibold leading-snug line-clamp-2">
+              {app.job_title}
+            </h4>
+          </div>
+          <p className="text-zinc-400 text-xs mt-1 flex items-center gap-1">
+            <Building2 size={11} className="text-zinc-500 shrink-0" />
+            <span className="truncate">{app.company}</span>
+          </p>
+          {app.location && (
+            <p className="text-zinc-500 text-[11px] mt-0.5 flex items-center gap-1">
+              <MapPin size={10} className="shrink-0" />
+              <span className="truncate">{app.location}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Badges strip: ATS & Risk & Alerts */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          {app.ats_score > 0 && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 border border-zinc-700/60 text-emerald-400">
+              ATS {Math.round(app.ats_score)}%
+            </span>
+          )}
+          <RiskBadge level={analysis.level} small />
+
+          {isStale && (
+            <span
+              title="Applied > 7 days ago with no update"
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/50 border border-amber-800/50 text-amber-300"
+            >
+              <Clock size={10} /> 7d+ Follow Up
+            </span>
+          )}
+
+          {duplicateCompany && (
+            <span
+              title="Multiple applications detected for this company"
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/40 border border-amber-800/40 text-amber-300"
+            >
+              <AlertTriangle size={10} /> Duplicate Co.
+            </span>
+          )}
+
+          {app.is_active_on_ats === false && (
+            <span
+              title="Job posting has been closed on employer ATS"
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/50 border border-red-800/50 text-red-300"
+            >
+              <AlertCircle size={10} /> Closed on ATS
+            </span>
+          )}
+        </div>
+
+        {statusError && (
+          <p className="text-[11px] text-red-400 font-medium">{statusError}</p>
+        )}
+
+        {/* Actions bar */}
+        <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-2">
+          <select
+            value={app.status.toLowerCase()}
+            disabled={transitioning}
+            onChange={e => handleStatusChange(e.target.value)}
+            className="px-2 py-1 bg-zinc-900 border border-zinc-700/70 rounded-lg text-[11px] text-zinc-300 focus:outline-none cursor-pointer max-w-[110px]"
+          >
+            {['saved', 'prepared', 'applied', 'interviewing', 'accepted', 'declined', 'rejected', 'ghosted', 'withdrawn'].map(st => (
+              <option key={st} value={st}>{st.toUpperCase()}</option>
+            ))}
+          </select>
+
+          <button
+            onClick={() => setReviewOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-lg text-xs font-semibold transition"
+          >
+            <FileText size={11} /> Review & Prep
+          </button>
+        </div>
+      </motion.div>
+
+      {reviewOpen && (
+        <ReviewModal
+          applicationId={app.id}
+          job={{
+            id: app.job_id,
+            title: app.job_title,
+            company: app.company,
+            url: app.url || '',
+            location: app.location,
+          }}
+          isOpen={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          onStatusUpdated={() => onRefresh()}
+        />
+      )}
     </>
   );
 };
@@ -682,42 +909,9 @@ export const MissionControl: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
-  const [agentScanning, setAgentScanning] = useState(false);
 
   // Risk stats (computed after analysis — updated per row but summarized here)
   const [riskCounts, setRiskCounts] = useState({ blocked: 0, warning: 0, safe: 0 });
-
-  // Convert a JobMatch from /jobs into an ApplicationRecord for display
-  const jobMatchToAppRecord = (job: any, idx: number): ApplicationRecord => ({
-    id: job.id ?? idx,
-    job_id: job.id ?? idx,
-    job_title: job.title ?? 'Unknown Role',
-    company: job.company ?? 'Unknown',
-    platform: job.platform ?? 'Unknown',
-    status: 'Applied',
-    ats_score: Math.round(job.match_score ?? 0),
-    applied_at: job.created_at ?? new Date().toISOString(),
-    location: job.location ?? '',
-    description: job.description ?? '',
-    url: job.url ?? '',
-  });
-
-  // Trigger live job scan
-  const triggerJobFetch = useCallback(async () => {
-    setAgentScanning(true);
-    try {
-      await api.get('/fetch-jobs');
-      const jobsRes = await api.get('/jobs');
-      const jobs: any[] = jobsRes.data || [];
-      if (jobs.length > 0) {
-        setApplications(jobs.map(jobMatchToAppRecord));
-      }
-    } catch (e) {
-      console.warn('[MissionControl] Live job fetch failed:', e);
-    } finally {
-      setAgentScanning(false);
-    }
-  }, []);
 
   const fetchApplications = useCallback(async () => {
     setLoading(true);
@@ -745,15 +939,7 @@ export const MissionControl: React.FC = () => {
           setApplications(appsData);
         }
       } else {
-        // 2. No application history — check real jobs from DB
-        const jobsRes = await api.get('/jobs');
-        const jobs: any[] = jobsRes.data || [];
-        if (jobs.length > 0) {
-          setApplications(jobs.map(jobMatchToAppRecord));
-        } else {
-          // No records — display clean empty state (no simulation)
-          setApplications([]);
-        }
+        setApplications([]);
       }
     } catch {
       setApplications([]);
@@ -765,6 +951,31 @@ export const MissionControl: React.FC = () => {
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
+
+  const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
+
+  // Compute duplicate company applications
+  const duplicateCompanyNames = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    applications.forEach(a => {
+      if (a.company) {
+        const key = a.company.trim().toLowerCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return new Set(
+      Object.entries(counts)
+        .filter(([_, count]) => count > 1)
+        .map(([comp]) => comp)
+    );
+  }, [applications]);
+
+  // Compute stale applications (applied > 7 days ago without update)
+  const staleApps = applications.filter(a =>
+    a.status?.toLowerCase() === 'applied' &&
+    a.applied_at &&
+    Date.now() - new Date(a.applied_at).getTime() > 7 * 24 * 3600 * 1000
+  );
 
   // Compute risk stats from analysis engine (run once after load)
   useEffect(() => {
@@ -781,14 +992,16 @@ export const MissionControl: React.FC = () => {
 
   const statuses = ['All', ...Array.from(new Set(applications.map(a => a.status)))];
 
-  // Only count rows where the user actually applied (not just discovered jobs)
-  const appliedCount = applications.filter(a => a.status === 'Applied' || a.status === 'Interview').length;
+  // Count rows where the user actually reached applied, interview, or offer
+  const appliedCount = applications.filter(a =>
+    ['applied', 'interviewing', 'accepted'].includes(a.status?.toLowerCase())
+  ).length;
 
   const filtered = applications.filter(app => {
     const matchSearch =
       app.job_title.toLowerCase().includes(search.toLowerCase()) ||
       app.company.toLowerCase().includes(search.toLowerCase()) ||
-      app.platform.toLowerCase().includes(search.toLowerCase());
+      (app.platform || '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'All' || app.status === filterStatus;
     return matchSearch && matchStatus;
   });
@@ -861,6 +1074,21 @@ export const MissionControl: React.FC = () => {
         </div>
       </motion.div>
 
+      {/* ── Follow-Up Reminder Alert Banner ── */}
+      {staleApps.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 px-5 py-3.5 bg-amber-950/30 border border-amber-800/40 rounded-xl text-amber-200"
+        >
+          <Clock size={18} className="text-amber-400 shrink-0" />
+          <div className="flex-1 text-xs">
+            <span className="font-semibold text-amber-300">Action Recommended:</span>{' '}
+            You have <span className="font-bold underline">{staleApps.length} application(s)</span> in "Applied" status for over 7 days with no recruiter update. Consider sending a brief check-in.
+          </div>
+        </motion.div>
+      )}
+
       {/* ── Applications List ── */}
       <div className="glass rounded-2xl overflow-hidden">
 
@@ -874,7 +1102,31 @@ export const MissionControl: React.FC = () => {
             </span>
           </h3>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                  viewMode === 'kanban'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <LayoutGrid size={13} /> Kanban
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                  viewMode === 'table'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <List size={13} /> Table
+              </button>
+            </div>
+
             {/* Search */}
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -883,7 +1135,7 @@ export const MissionControl: React.FC = () => {
                 placeholder="Search..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 pr-3 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-700/60 w-52"
+                className="pl-9 pr-3 py-1.5 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-700/60 w-48"
               />
             </div>
 
@@ -914,27 +1166,59 @@ export const MissionControl: React.FC = () => {
             </div>
             <div>
               <p className="text-zinc-200 font-semibold text-base">
-                {applications.length === 0 ? 'No applications or tracked jobs yet' : 'No results match your filter'}
+                {applications.length === 0 ? 'No applications tracked yet' : 'No results match your filter'}
               </p>
               <p className="text-zinc-500 text-sm mt-1 max-w-md">
                 {applications.length === 0
-                  ? 'Scan for live job opportunities or submit applications from the dashboard to track real-time scam scoring.'
+                  ? 'Save or prepare jobs from the dashboard feed to track your authentic application pipeline here.'
                   : 'Try adjusting your search query or status filter.'}
               </p>
             </div>
-            {applications.length === 0 && (
-              <button
-                onClick={triggerJobFetch}
-                disabled={agentScanning}
-                className="mt-3 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 shadow-lg shadow-blue-900/20"
-              >
-                {agentScanning ? (
-                  <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> Scanning live portals...</>
-                ) : (
-                  <><Sparkles size={14} /> Scan Live Opportunities</>
-                )}
-              </button>
-            )}
+          </div>
+        ) : viewMode === 'kanban' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-6">
+            {KANBAN_COLUMNS.map(col => {
+              const colApps = filtered.filter(a => getColumnForStatus(a.status) === col.id);
+              return (
+                <div key={col.id} className="flex flex-col bg-zinc-950/40 rounded-xl border border-zinc-800/60 p-3 space-y-3 min-h-[420px]">
+                  <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${col.color}`}>
+                      {col.label}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800">
+                      {colApps.length}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 space-y-3 overflow-y-auto max-h-[680px]">
+                    {colApps.length === 0 ? (
+                      <div className="h-28 flex items-center justify-center border border-dashed border-zinc-800/60 rounded-lg text-zinc-600 text-xs font-mono">
+                        Empty
+                      </div>
+                    ) : (
+                      colApps.map(app => {
+                        const analysis = analyzeJobScamRisk(app);
+                        const isStale =
+                          app.status?.toLowerCase() === 'applied' &&
+                          app.applied_at &&
+                          Date.now() - new Date(app.applied_at).getTime() > 7 * 24 * 3600 * 1000;
+                        const isDup = duplicateCompanyNames.has(app.company?.trim().toLowerCase());
+                        return (
+                          <KanbanCard
+                            key={app.id}
+                            app={app}
+                            analysis={analysis}
+                            onRefresh={fetchApplications}
+                            duplicateCompany={isDup}
+                            isStale={!!isStale}
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div>
@@ -947,7 +1231,7 @@ export const MissionControl: React.FC = () => {
             </div>
             <AnimatePresence>
               {filtered.map((app, i) => (
-                <ApplicationRow key={app.id} app={app} index={i} />
+                <ApplicationRow key={app.id} app={app} index={i} onRefresh={fetchApplications} />
               ))}
             </AnimatePresence>
           </div>

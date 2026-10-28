@@ -12,3 +12,6 @@ passlib[bcrypt]
 python-jose[cryptography]
 bcrypt==4.0.1
 aiohttp
+python-docx
+alembic
+psycopg2-binary

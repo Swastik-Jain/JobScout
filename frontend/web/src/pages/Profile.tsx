@@ -183,10 +183,14 @@ export const Profile: React.FC = () => {
     clearLogs();
 
     try {
+      const token = localStorage.getItem('jb_token');
       const response = await fetch(resolveApiUrl('/profile/analyze-repos'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo_links: links, email: user?.email }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ repo_links: links }),
       });
 
       const reader = response.body?.getReader();

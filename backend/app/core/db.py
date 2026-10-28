@@ -1,7 +1,10 @@
 import json
+import logging
 from pathlib import Path
 from sqlmodel import create_engine, SQLModel, Session, select
 from app.core.config import settings
+
+logger = logging.getLogger("jobscout.db")
 
 db_url = settings.database_url
 is_sqlite = db_url.startswith("sqlite")
@@ -47,9 +50,9 @@ def seed_company_sources(session: Session):
                 session.add(source)
                 count += 1
         session.commit()
-        print(f"[DB] Initialized {count} company sources from seed file.")
+        logger.info(f"[DB] Initialized {count} company sources from seed file.")
     except Exception as e:
-        print(f"[DB] Could not seed company sources: {e}")
+        logger.warning(f"[DB] Could not seed company sources: {e}")
 
 
 def init_db():

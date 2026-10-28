@@ -39,6 +39,9 @@ export interface UserProfile {
   email: string;
   phone?: string;
   headline?: string;
+  target_role?: string;
+  preferred_location?: string;
+  seniority_level?: string;
   github_url?: string;
   linkedin_url?: string;
   skills: string[];

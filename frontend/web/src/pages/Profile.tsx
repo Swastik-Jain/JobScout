@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   User, Mail, Phone, GitBranch, Link2, Pencil, Check, X, Plus, Trash2,
   Briefcase, FolderGit2, GraduationCap, Zap, Loader2, Link,
-  ShieldCheck, RefreshCw, Star,
+  ShieldCheck, RefreshCw, Star, MapPin,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import type { GithubRepo, ExperienceEntry, ProjectEntry, EducationEntry } from '../types';
@@ -91,7 +91,15 @@ export const Profile: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   // ── Local drafts (one per section) ──
-  const [draftInfo, setDraftInfo] = useState({ name: '', phone: '', headline: '', github_url: '', linkedin_url: '' });
+  const [draftInfo, setDraftInfo] = useState({
+    name: '',
+    phone: '',
+    headline: '',
+    target_role: '',
+    preferred_location: '',
+    github_url: '',
+    linkedin_url: '',
+  });
   const [draftSkills, setDraftSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState('');
   const [draftExperience, setDraftExperience] = useState<ExperienceEntry[]>([]);
@@ -108,6 +116,8 @@ export const Profile: React.FC = () => {
       name: user.name || '',
       phone: user.phone || '',
       headline: user.headline || '',
+      target_role: user.target_role || 'Software Engineer',
+      preferred_location: user.preferred_location || 'India, Remote',
       github_url: user.github_url || '',
       linkedin_url: user.linkedin_url || '',
     });
@@ -132,7 +142,16 @@ export const Profile: React.FC = () => {
     setEditingSection(null);
     // Rehydrate that section from user
     if (!user) return;
-    if (section === 'info') setDraftInfo({ name: user.name || '', phone: user.phone || '', headline: user.headline || '', github_url: user.github_url || '', linkedin_url: user.linkedin_url || '' });
+    if (section === 'info')
+      setDraftInfo({
+        name: user.name || '',
+        phone: user.phone || '',
+        headline: user.headline || '',
+        target_role: user.target_role || 'Software Engineer',
+        preferred_location: user.preferred_location || 'India, Remote',
+        github_url: user.github_url || '',
+        linkedin_url: user.linkedin_url || '',
+      });
     if (section === 'skills') setDraftSkills(user.skills || []);
     if (section === 'experience') setDraftExperience(user.experience || []);
     if (section === 'projects') setDraftProjects(user.projects || []);
@@ -199,13 +218,19 @@ export const Profile: React.FC = () => {
       if (!reader) return;
 
       let resultData: any = null;
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value);
-        const lines = text.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep any trailing incomplete fragment in the buffer
+        buffer = lines.pop() || '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line.startsWith('data: ')) continue;
           const json = line.replace('data: ', '').trim();
           if (!json) continue;
           try {
@@ -213,8 +238,19 @@ export const Profile: React.FC = () => {
             if (chunk.type === 'log') pushLog(chunk.log);
             if (chunk.type === 'result') resultData = chunk.data;
             if (chunk.type === 'error') pushLog(chunk.message);
-          } catch { /* ignore */ }
+          } catch {
+            // Wait for more chunks if incomplete JSON
+          }
         }
+      }
+
+      // Process any leftover fragment in buffer after EOF
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const chunk = JSON.parse(buffer.replace('data: ', '').trim());
+          if (chunk.type === 'log') pushLog(chunk.log);
+          if (chunk.type === 'result') resultData = chunk.data;
+        } catch { /* ignore */ }
       }
 
       if (resultData) {
@@ -239,7 +275,7 @@ export const Profile: React.FC = () => {
         const verifiedCount = newRepos.filter((r: any) => r.verified).length;
         pushLog(`[RepoAgent] ➔ ✅ Intelligence sync complete. ${verifiedCount}/${newRepos.length} repo(s) verified via GitHub API.`);
       }
-    } catch (e) {
+    } catch {
       pushLog('[RepoAgent] ➔ ❌ Sync failed. Check backend connection.');
     } finally {
       setRepoAnalyzing(false);
@@ -295,6 +331,8 @@ export const Profile: React.FC = () => {
             <div className="md:col-span-2">
               <InputRow label="Headline" value={draftInfo.headline} onChange={v => setDraftInfo(d => ({ ...d, headline: v }))} placeholder="Full-Stack Engineer · Python · React" />
             </div>
+            <InputRow label="Target Job Role" value={draftInfo.target_role} onChange={v => setDraftInfo(d => ({ ...d, target_role: v }))} placeholder="Software Engineer / Backend Developer" icon={<Briefcase size={14} />} />
+            <InputRow label="Preferred Location" value={draftInfo.preferred_location} onChange={v => setDraftInfo(d => ({ ...d, preferred_location: v }))} placeholder="India, Remote" icon={<MapPin size={14} />} />
             <InputRow label="GitHub URL" value={draftInfo.github_url} onChange={v => setDraftInfo(d => ({ ...d, github_url: v }))} placeholder="https://github.com/username" icon={<GitBranch size={14} />} />
             <InputRow label="LinkedIn URL" value={draftInfo.linkedin_url} onChange={v => setDraftInfo(d => ({ ...d, linkedin_url: v }))} placeholder="https://linkedin.com/in/username" icon={<Link2 size={14} />} />
           </div>
@@ -303,8 +341,20 @@ export const Profile: React.FC = () => {
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600/40 to-purple-600/40 border border-zinc-700 flex items-center justify-center text-2xl font-bold text-white shrink-0">
               {user.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
-            <div className="min-w-0">
-              <h3 className="text-xl font-bold text-white">{user.name || '—'}</h3>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-xl font-bold text-white">{user.name || '—'}</h3>
+                {user.target_role && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    Target: {user.target_role}
+                  </span>
+                )}
+                {user.preferred_location && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+                    <MapPin size={10} /> {user.preferred_location}
+                  </span>
+                )}
+              </div>
               <p className="text-zinc-400 text-sm mt-0.5">{user.headline || <span className="italic text-zinc-600">No headline yet</span>}</p>
               <div className="flex flex-wrap gap-4 mt-3 text-xs text-zinc-400">
                 <span className="flex items-center gap-1.5"><Mail size={12} />{user.email}</span>

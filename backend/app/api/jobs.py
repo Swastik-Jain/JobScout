@@ -7,6 +7,7 @@ Jobs routes
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlmodel import Session, select
+import logging
 
 from app.core.db import get_session
 from app.models.models import UserProfile, Job, JobScore, JobMatch, CompanySource
@@ -14,6 +15,7 @@ from app.api.deps import get_current_user, profile_to_dict
 from app.tools.ats_adapters import sync_all_active_sources
 from app.agents.job_finder_agent import run_job_finder_agent, discover_new_ats_sources_offline
 
+logger = logging.getLogger("jobscout.jobs")
 router = APIRouter()
 
 
@@ -29,19 +31,19 @@ async def get_jobs(
     - Enriches descriptions for top candidates and scores with Gemini
     - Saves per-user JobScore and returns verified listings without wiping applications
     """
-    # Derive job role from profile
+    # Derive job role explicitly from user profile target_role, falling back to headline
     profile_dict = profile_to_dict(current_user)
-    skills = profile_dict.get("skills") or []
-    headline = profile_dict.get("headline") or ""
+    target_role = (profile_dict.get("target_role") or getattr(current_user, "target_role", "") or "").strip()
+    headline = (profile_dict.get("headline") or getattr(current_user, "headline", "") or "").strip()
 
-    if skills:
-        job_role = skills[0]
+    if target_role:
+        job_role = target_role
     elif headline:
         job_role = " ".join(headline.split()[:3])
     else:
-        job_role = "Software Developer"
+        job_role = "Software Engineer"
 
-    print(f"[fetch-jobs] Searching for: '{job_role}' for user {current_user.email}")
+    logger.info(f"[fetch-jobs] Searching for: '{job_role}' for user {current_user.email}")
     jobs_data = await run_job_finder_agent(job_role=job_role, user_profile=profile_dict, session=session)
 
     # Persist scores in JobScore for this user without deleting Application records

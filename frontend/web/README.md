@@ -1,73 +1,69 @@
-# React + TypeScript + Vite
+# JobScout Frontend (Web)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interactive, real-time client application for **JobScout** — the Autonomous Job Search, ATS Match Optimization, and Application Management platform.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Key Features & Pages
 
-## React Compiler
+- **Mission Control (`src/pages/MissionControl.tsx`)**:
+  - Full application lifecycle tracker with Kanban and list views.
+  - Strict atomic state transitions (`saved` ➔ `prepared` ➔ `applied` ➔ `interviewing` ➔ `offered` / `rejected`).
+  - Integrated Review & Edit Modal for tailored resumes, cover notes, and interview Q&A cards before applying.
+  - DOCX and Markdown resume export triggers.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Candidate Profile & Repo Intelligence (`src/pages/Profile.tsx`)**:
+  - Structured profile editing (target role, location preferences, seniority, verified technical skills, work history).
+  - Real-time GitHub repository inspection via Server-Sent Events (SSE) with stream buffer chunking to prevent dropped events.
 
-## Expanding the ESLint configuration
+- **Client-Side Heuristic Fraud Guard (`src/lib/fraudHeuristics.tsx`)**:
+  - Transparent, client-side pattern matching inspecting job metadata for recruitment scams.
+  - Flags high-risk signals: wire transfer requests, advance-fee equipment purchases, Telegram/WhatsApp-only interview channels, P2P payment methods, unrealistic compensation lures.
+  - Risk tiers: `BLOCKED` (≥60% risk score), `WARNING` (≥25%), and `SAFE`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Live Streaming Logs & Console (`src/contexts/TerminalContext.tsx`)**:
+  - Real-time WebSocket terminal displaying agent reasoning steps, ATS feed synchronization progress, and evaluation metrics.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🛠️ Technology Stack
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **Framework**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Bundler & Dev Server**: [Vite](https://vitejs.dev/)
+- **Styling**: TailwindCSS utility classes + Custom Dark Glassmorphism Design System
+- **Animation**: [Framer Motion](https://www.framer.com/motion/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **HTTP Client**: [Axios](https://axios-http.com/) with automatic JWT Bearer token injection
+
+---
+
+## 💻 Local Development
+
+### 1. Install Dependencies
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Configure Environment
+Create a `.env` file in `frontend/web/` if custom endpoints are needed:
+```env
+VITE_API_URL=http://localhost:8000
+```
+*(By default, Vite proxies `/api` and `/ws` to `http://localhost:8000` via `vite.config.ts`)*.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 3. Run Dev Server
+```bash
+npm run dev
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 4. Verification & Linting
+```bash
+# Type check TypeScript project
+npx tsc -b
+
+# Run ESLint rules
+npm run lint
+
+# Production build bundle
+npm run build
 ```

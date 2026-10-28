@@ -7,8 +7,11 @@ from JSON-LD structured data and meta tags.
 import json
 import re
 import asyncio
+import logging
 import httpx
 from typing import Optional, Dict
+
+logger = logging.getLogger("jobscout.job_scraper")
 
 
 # Browser-like headers to avoid bot detection
@@ -44,12 +47,14 @@ CLOSED_JOB_INDICATORS = [
     "this vacancy is closed",
     "hiring has ceased",
     "this job is no longer active",
+    "no longer active",
     "this job is inactive",
     "no longer accepting responses",
     "job has been closed",
     "this job has been closed",
     "job posting closed",
     "job is closed",
+    "job opening closed",
     "opening has been filled",
     "opening is closed",
     "role has been filled",
@@ -58,6 +63,8 @@ CLOSED_JOB_INDICATORS = [
     "job has been archived",
     "posting has ended",
     "job not found",
+    "posting not found",
+    "posting is not found",
     "404 not found",
 ]
 
@@ -190,12 +197,12 @@ async def scrape_job_page(url: str) -> Optional[Dict]:
 
             # 1. Dead pages (404/410) are definitively closed/removed
             if resp.status_code in (404, 410):
-                print(f"[Scraper] ➔ Dropping dead/expired job (HTTP {resp.status_code}): {url[:60]}")
+                logger.info(f"[Scraper] ➔ Dropping dead/expired job (HTTP {resp.status_code}): {url[:60]}")
                 return {"is_closed": True, "reason": f"HTTP {resp.status_code}"}
 
             # 2. Redirects to generic search or jobs home mean the role was unlisted
             if "/jobs/search" in final_url or final_url.rstrip("/").endswith(("/jobs", "/jobs/search")):
-                print(f"[Scraper] ➔ Dropping redirected/unlisted job: {url[:60]}")
+                logger.info(f"[Scraper] ➔ Dropping redirected/unlisted job: {url[:60]}")
                 return {"is_closed": True, "reason": "Redirected to search/home"}
 
             if resp.status_code != 200:
@@ -205,7 +212,7 @@ async def scrape_job_page(url: str) -> Optional[Dict]:
 
             # 3. Check if job HTML explicitly states it is closed/expired
             if is_job_closed(html):
-                print(f"[Scraper] ➔ Dropping closed/expired job: {url[:60]}")
+                logger.info(f"[Scraper] ➔ Dropping closed/expired job: {url[:60]}")
                 return {"is_closed": True, "reason": "Closed text indicator"}
 
             # 4. Try JSON-LD first (most reliable structured data)
@@ -254,7 +261,7 @@ async def scrape_job_page(url: str) -> Optional[Dict]:
                 }
 
     except Exception as e:
-        print(f"[Scraper] ➔ Failed {url[:60]}: {e}")
+        logger.warning(f"[Scraper] ➔ Failed {url[:60]}: {e}")
 
     return None
 

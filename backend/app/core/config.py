@@ -21,6 +21,18 @@ class Settings:
     serper_api_key: str = os.getenv("SERPER_API_KEY", "")
     github_token: str = os.getenv("GITHUB_TOKEN", "")
 
+    # ── AI Models ─────────────────────────────────────────────────
+    gemini_primary_model: str = os.getenv("GEMINI_PRIMARY_MODEL", "gemini-2.5-flash")
+    gemini_lite_model: str = os.getenv("GEMINI_LITE_MODEL", "gemini-2.5-flash-lite")
+    gemini_fallback_model: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-flash-latest")
+
+    @property
+    def gemini_model_chain(self) -> list[str]:
+        raw = os.getenv("GEMINI_MODEL_CHAIN", "").strip()
+        if raw:
+            return [m.strip() for m in raw.split(",") if m.strip()]
+        return [self.gemini_primary_model, self.gemini_lite_model, self.gemini_fallback_model]
+
     # ── Auth ──────────────────────────────────────────────────────
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days

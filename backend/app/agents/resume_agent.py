@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger("jobscout.resume_agent")
 """
 Resume Agent
 ━━━━━━━━━━━━
@@ -22,12 +24,8 @@ from app.services.resume_validator import (
     compute_ats_score,
 )
 
-# Ordered fallback chain: fastest/cheapest first
-MODEL_FALLBACK_CHAIN = [
-    "gemini-2.0-flash",        # primary — fastest
-    "gemini-2.0-flash-lite",   # lite fallback — always available in v1beta
-    "gemini-1.5-pro-latest",   # last resort
-]
+# Ordered fallback chain from centralized settings
+MODEL_FALLBACK_CHAIN = settings.gemini_model_chain
 
 # Errors that warrant a retry (transient)
 RETRYABLE_STATUS_CODES = ("503", "500", "UNAVAILABLE", "INTERNAL")
@@ -132,13 +130,13 @@ def _make_client() -> Optional[genai.Client]:
     try:
         return genai.Client(api_key=settings.google_api_key)
     except Exception as e:
-        print(f"[ResumeAgent] Warning: could not initialize Gemini client: {e}")
+        logger.warning(f"[ResumeAgent] Warning: could not initialize Gemini client: {e}")
         return None
 
 
 class ResumeAgent:
-    def __init__(self, model_name: str = "gemini-2.0-flash"):
-        self.model_name = model_name
+    def __init__(self, model_name: Optional[str] = None):
+        self.model_name = model_name or settings.gemini_primary_model
         self.client = _make_client()
 
     def _build_profile_text(self, user_profile: Dict) -> str:
@@ -202,7 +200,7 @@ class ResumeAgent:
         last_error = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                print(f"[ResumeAgent] ➔ [{model_name}] attempt {attempt}/{MAX_RETRIES} (async)...")
+                logger.info(f"[ResumeAgent] ➔ [{model_name}] attempt {attempt}/{MAX_RETRIES} (async)...")
                 response = await self.client.aio.models.generate_content(
                     model=model_name,
                     contents=prompt,
@@ -224,7 +222,7 @@ class ResumeAgent:
                 is_retryable = any(code in err_str for code in RETRYABLE_STATUS_CODES)
                 if is_retryable and attempt < MAX_RETRIES:
                     delay = BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
-                    print(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), "
+                    logger.warning(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), ")
                           f"retrying in {delay:.1f}s... Error: {err_str[:120]}")
                     await asyncio.sleep(delay)
                 else:
@@ -255,7 +253,7 @@ class ResumeAgent:
         user_skills = user_profile.get("skills") or []
 
         if not self.client:
-            print("[ResumeAgent] ➔ Gemini API key not configured — using deterministic baseline resume.")
+            logger.info("[ResumeAgent] ➔ Gemini API key not configured — using deterministic baseline resume.")
             fallback_ats, _ = compute_ats_score(base_resume, job_description, user_skills)
             return ResumeAgentOutput(
                 resume_md=base_resume,
@@ -266,13 +264,13 @@ class ResumeAgent:
         chain = [self.model_name] + [m for m in MODEL_FALLBACK_CHAIN if m != self.model_name]
         for model in chain:
             try:
-                print(f"[ResumeAgent] ➔ Generating resume with {model}...")
+                logger.info(f"[ResumeAgent] ➔ Generating resume with {model}...")
                 out = await self._call_model_async(model, prompt)
                 
                 # Enforce no fabrication on the generated resume
                 is_valid, errors = validate_no_fabrication(out.resume_md, user_profile)
                 if not is_valid:
-                    print(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile.")
+                    logger.warning(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile."))
                     out.resume_md = base_resume
                     out.improvements.append("Reverted unverified modifications to preserve strict candidate accuracy.")
 
@@ -288,13 +286,13 @@ class ResumeAgent:
                 is_transient = any(code in err for code in RETRYABLE_STATUS_CODES)
                 is_model_unavailable = "404" in err or "NOT_FOUND" in err
                 if is_quota:
-                    print(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model...")
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model..."))
                 elif is_transient:
-                    print(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model...")
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model..."))
                 elif is_model_unavailable:
-                    print(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model...")
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model..."))
                 else:
-                    print(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
+                    logger.error(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
                     ats_score, _ = compute_ats_score(base_resume, job_description, user_skills)
                     return ResumeAgentOutput(
                         resume_md=base_resume,
@@ -357,14 +355,14 @@ class ResumeAgent:
         result = None
 
         for i in range(max_iterations):
-            print(f"[ResumeAgent] ➔ Iteration {i + 1}/{max_iterations}")
+            logger.info(f"[ResumeAgent] ➔ Iteration {i + 1}/{max_iterations}")
             result = self.generate_resume(user_profile, job_description, critic_feedback)
 
             if result.ats_score == 0:
                 break  # quota exhausted, stop looping
 
             review = self.critic_agent(result)
-            print(f"[ResumeAgent] ➔ Critic: {review['status']} (score={result.ats_score})")
+            logger.info(f"[ResumeAgent] ➔ Critic: {review['status']} (score={result.ats_score})")
 
             if review["status"] == "approved":
                 break

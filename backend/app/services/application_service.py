@@ -11,12 +11,15 @@ import io
 import re
 import json
 import asyncio
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 from google import genai
 from google.genai import types
+
+logger = logging.getLogger("jobscout.application_service")
 
 from app.core.config import settings
 from app.core.db import engine
@@ -32,6 +35,7 @@ from app.services.resume_validator import (
     render_deterministic_base_resume,
     validate_no_fabrication,
     compute_ats_score,
+    judge_resume_with_llm,
 )
 
 # ─── Corrected State Machine ──────────────────────────────────────────────────
@@ -235,7 +239,7 @@ Return JSON with:
 }}
 """
                 response = await _client.aio.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model=settings.gemini_primary_model,
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
@@ -250,7 +254,7 @@ Return JSON with:
                 if is_valid:
                     tailored_resume = candidate_md
                 else:
-                    print(f"[ApplicationService] ➔ Fabrication detected ({violations}); using validated base resume.")
+                    logger.warning(f"[ApplicationService] ➔ Fabrication detected ({violations}); using validated base resume.")
                     tailored_resume = base_resume
 
                 if data.get("cover_note"):
@@ -261,14 +265,20 @@ Return JSON with:
                     improvements = data["improvements"]
 
             except Exception as e:
-                print(f"[ApplicationService] ➔ Preparation generation exception: {e}")
+                logger.error(f"[ApplicationService] ➔ Preparation generation exception: {e}")
 
-        # Compute Transparent ATS Score
+        # Run independent LLM Judge and compute transparent ATS Score
+        judge_score, judge_critique = await judge_resume_with_llm(
+            resume_text=tailored_resume,
+            job_description=job_desc,
+            candidate_skills=user.skills,
+        )
         final_ats_score, ats_details = compute_ats_score(
             resume_text=tailored_resume,
             job_description=job_desc,
             candidate_skills=user.skills,
-            llm_relevance_rating=85,
+            llm_judge_score=judge_score,
+            judge_critique=judge_critique,
         )
 
         # Count existing versions for version_number
@@ -306,7 +316,7 @@ Return JSON with:
 
         session.add(app)
         session.commit()
-        print(f"[ApplicationService] ➔ Application #{app.id} preparation completed (ATS Score: {final_ats_score}%).")
+        logger.info(f"[ApplicationService] ➔ Application #{app.id} preparation completed (ATS Score: {final_ats_score}%).")
 
 
 # ─── Export to DOCX & Plain Text ──────────────────────────────────────────────

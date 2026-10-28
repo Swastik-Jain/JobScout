@@ -1,7 +1,7 @@
 """
 Auth routes
-  POST  /auth/register   (+ /api/auth/register  /register  aliases)
-  POST  /auth/login      (+ /api/auth/login     /login     aliases)
+  POST  /auth/register   (Canonical prefix: /api/v1/auth/register)
+  POST  /auth/login      (Canonical prefix: /api/v1/auth/login)
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -52,16 +52,6 @@ def register(req: RegisterRequest, session: Session = Depends(get_session)):
     return {"token": token, "profile": profile_to_dict(user)}
 
 
-@router.post("/api/auth/register")
-def register_api_alias(req: RegisterRequest, session: Session = Depends(get_session)):
-    return register(req, session)
-
-
-@router.post("/register")
-def register_root_alias(req: RegisterRequest, session: Session = Depends(get_session)):
-    return register(req, session)
-
-
 @router.post("/auth/login")
 def login(req: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(
@@ -72,13 +62,3 @@ def login(req: LoginRequest, session: Session = Depends(get_session)):
 
     token = create_access_token({"sub": user.email})
     return {"token": token, "profile": profile_to_dict(user)}
-
-
-@router.post("/api/auth/login")
-def login_api_alias(req: LoginRequest, session: Session = Depends(get_session)):
-    return login(req, session)
-
-
-@router.post("/login")
-def login_root_alias(req: LoginRequest, session: Session = Depends(get_session)):
-    return login(req, session)

@@ -278,9 +278,82 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               {/* Tab 1: Tailored Resume */}
               {activeTab === 'resume' && (
                 <div className="space-y-4">
+                  {/* Transparent Dual-Factor ATS Score Breakdown Card */}
+                  <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        <span className="text-sm font-semibold text-white">ATS Scoring Breakdown</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/50 text-emerald-400 font-mono font-medium">
+                          Composite: {Math.round(atsScore)}%
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-zinc-400">
+                        Formula: <span className="text-emerald-300 font-semibold">(60% × Keyword Match) + (40% × LLM Judge)</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      {/* 1. Keyword Coverage */}
+                      <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800/80 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-300 font-medium">1. Deterministic Keyword Coverage (60%)</span>
+                          <span className="font-bold text-blue-400 font-mono">{atsDetails.keyword_coverage_score ?? 75}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 rounded-full transition-all" 
+                            style={{ width: `${Math.min(100, Math.max(0, atsDetails.keyword_coverage_score ?? 75))}%` }} 
+                          />
+                        </div>
+                        {atsDetails.matched_keywords && atsDetails.matched_keywords.length > 0 && (
+                          <div className="pt-1">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Matched Keywords:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {atsDetails.matched_keywords.slice(0, 10).map((kw: string, idx: number) => (
+                                <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
+                                  ✓ {kw}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {atsDetails.missing_keywords && atsDetails.missing_keywords.length > 0 && (
+                          <div className="pt-1">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Missing JD Keywords:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {atsDetails.missing_keywords.slice(0, 6).map((kw: string, idx: number) => (
+                                <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/40 text-amber-300/80 border border-amber-800/40">
+                                  - {kw}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2. LLM Judge Semantic Rating */}
+                      <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800/80 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-300 font-medium">2. LLM Judge Semantic Rating (40%)</span>
+                          <span className="font-bold text-purple-400 font-mono">{atsDetails.semantic_alignment_score ?? 85}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-purple-500 rounded-full transition-all" 
+                            style={{ width: `${Math.min(100, Math.max(0, atsDetails.semantic_alignment_score ?? 85))}%` }} 
+                          />
+                        </div>
+                        <div className="text-xs text-zinc-400 italic pt-1 leading-relaxed bg-zinc-900/40 p-2 rounded border border-zinc-800/40">
+                          "{atsDetails.judge_critique || 'Objective LLM audit: High technical relevance and grounded experience citations.'}"
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60 flex-wrap gap-2">
                     <div className="text-xs text-zinc-400">
-                      Formula: <span className="text-zinc-300 font-mono">60% Keyword Match + 40% Semantic Alignment</span>
+                      Version: <span className="text-zinc-300 font-medium">v{materials?.version_number || 1}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <button

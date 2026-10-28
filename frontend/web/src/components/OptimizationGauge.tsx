@@ -3,15 +3,21 @@ import { motion } from 'framer-motion';
 
 interface OptimizationGaugeProps {
   score: number;
+  keywordScore?: number;
+  structureScore?: number;
+  parsingScore?: number;
 }
 
-export const OptimizationGauge: React.FC<OptimizationGaugeProps> = ({ score }) => {
-  // We mock sub-metrics based on the reference instruction, scaling them slightly by score if we wanted to true sync,
-  // but to match the reference we'll display the values conceptually requested, maybe pivoting around the ATS score.
-  // We use specific values 98, 89, 95 or a percentage of the actual score to simulate the reference.
-  const keywordsScore = Math.min(100, Math.floor(score * 1.04));
-  const structureScore = Math.max(0, Math.floor(score * 0.95));
-  const parsingScore = Math.min(100, Math.floor(score * 1.01));
+export const OptimizationGauge: React.FC<OptimizationGaugeProps> = ({ 
+  score, 
+  keywordScore, 
+  structureScore, 
+  parsingScore 
+}) => {
+  // Use verified sub-metrics if provided by the ATS breakdown, or default to the validated base score
+  const keywordsVal = keywordScore !== undefined ? Math.min(100, Math.max(0, keywordScore)) : score;
+  const structureVal = structureScore !== undefined ? Math.min(100, Math.max(0, structureScore)) : score;
+  const parsingVal = parsingScore !== undefined ? Math.min(100, Math.max(0, parsingScore)) : score;
 
   const radius = 90;
   const circumference = 2 * Math.PI * radius;
@@ -63,15 +69,15 @@ export const OptimizationGauge: React.FC<OptimizationGaugeProps> = ({ score }) =
       <div className="grid grid-cols-3 gap-3 w-full">
         <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg p-3 flex flex-col items-center justify-center">
           <span className="text-zinc-400 text-[10px] font-bold tracking-wider uppercase mb-1">Keywords</span>
-          <span className="text-white text-xl font-semibold">{keywordsScore}%</span>
+          <span className="text-white text-xl font-semibold">{keywordsVal}%</span>
         </div>
         <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg p-3 flex flex-col items-center justify-center">
           <span className="text-zinc-400 text-[10px] font-bold tracking-wider uppercase mb-1">Structure</span>
-          <span className="text-white text-xl font-semibold">{structureScore}%</span>
+          <span className="text-white text-xl font-semibold">{structureVal}%</span>
         </div>
         <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg p-3 flex flex-col items-center justify-center">
           <span className="text-zinc-400 text-[10px] font-bold tracking-wider uppercase mb-1">Parsing</span>
-          <span className="text-white text-xl font-semibold">{parsingScore}%</span>
+          <span className="text-white text-xl font-semibold">{parsingVal}%</span>
         </div>
       </div>
     </div>

@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger("jobscout.job_finder")
 """
 Job Finder Agent — Production Hybrid Engine
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -27,8 +29,8 @@ from app.tools.ats_adapters import (
     validate_and_register_slug,
 )
 
-# Current models available in v1beta — ordered fastest/cheapest first
-SCORING_MODEL_CHAIN = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
+# Configurable model fallback chain from centralized settings
+SCORING_MODEL_CHAIN = settings.gemini_model_chain
 RETRYABLE_CODES = ("503", "500", "UNAVAILABLE", "INTERNAL")
 MAX_RETRIES = 3
 BASE_DELAY = 2.0
@@ -45,10 +47,10 @@ async def discover_new_ats_sources_offline(session: Session) -> int:
     Does NOT run per user request, preventing credit burning.
     """
     if not settings.serper_api_key:
-        print("[JobDiscoveryOffline] ➔ SERPER_API_KEY is not configured; offline discovery disabled.")
+        logger.info("[JobDiscoveryOffline] ➔ SERPER_API_KEY is not configured; offline discovery disabled.")
         return 0
 
-    print("[JobDiscoveryOffline] ➔ Running scheduled ATS discovery query via Serper...")
+    logger.info("[JobDiscoveryOffline] ➔ Running scheduled ATS discovery query via Serper...")
     query = '(site:job-boards.greenhouse.io OR site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com) ("software engineer" OR "developer") (India OR Remote)'
 
     discovered_count = 0
@@ -76,23 +78,28 @@ async def discover_new_ats_sources_offline(session: Session) -> int:
                         if registered:
                             discovered_count += 1
             else:
-                print(f"[JobDiscoveryOffline] ➔ Serper HTTP {r.status_code}")
+                logger.warning(f"[JobDiscoveryOffline] ➔ Serper HTTP {r.status_code}")
         except Exception as e:
-            print(f"[JobDiscoveryOffline] ➔ Serper discovery error: {e}")
+            logger.warning(f"[JobDiscoveryOffline] ➔ Serper discovery error: {e}")
 
-    print(f"[JobDiscoveryOffline] ➔ Discovered and registered {discovered_count} new verified company ATS sources.")
+    logger.info(f"[JobDiscoveryOffline] ➔ Discovered and registered {discovered_count} new verified company ATS sources.")
     return discovered_count
 
 
 # ─── Gemini Ranker ────────────────────────────────────────────────────────────
 async def rank_enriched_jobs(jobs: List[Dict], user_profile: Dict) -> List[Dict]:
-    """Score shortlisted jobs against user profile using Gemini. No description invention."""
+    """
+    Score shortlisted jobs against user profile using Gemini.
+    Sends minimal payload with job IDs, receives only scores back, and maps by ID.
+    Prevents token bloat, truncation, and field modification.
+    """
     if not jobs:
         return []
 
-    print(f"[JobFinderAgent] ➔ Scoring {len(jobs)} shortlisted jobs with Gemini...")
+    logger.info(f"[JobFinderAgent] ➔ Scoring {len(jobs)} shortlisted jobs with Gemini...")
 
     profile_text = (
+        f"Target Role: {user_profile.get('target_role', 'Software Engineer')}\n"
         f"Candidate Skills: {', '.join(user_profile.get('skills', []))}\n"
         f"Seniority / Preference: {user_profile.get('seniority_level', 'Entry-Level / Fresher')}\n"
         f"Location Preference: {user_profile.get('preferred_location', 'India, Remote')}\n"
@@ -100,24 +107,31 @@ async def rank_enriched_jobs(jobs: List[Dict], user_profile: Dict) -> List[Dict]
         f"Projects: {json.dumps(user_profile.get('projects', []))}"
     )
 
-    jobs_text = json.dumps([{
-        "id": j.get("id"),
-        "external_id": j.get("external_id"),
-        "title": j["title"],
-        "company": j["company"],
-        "platform": j["platform"],
-        "url": j["url"],
-        "location": j["location"],
-        "description": j.get("description") or "Active verified position on company career portal.",
-    } for j in jobs])
+    # Build minimal payload: send only id, title, company, location, and brief description
+    minimal_jobs = []
+    for idx, j in enumerate(jobs):
+        jid = j.get("id")
+        if jid is None:
+            jid = j.get("external_id") or idx + 1
+        desc_snippet = (j.get("description") or "").strip()
+        if len(desc_snippet) > 600:
+            desc_snippet = desc_snippet[:600] + "..."
+        minimal_jobs.append({
+            "id": jid,
+            "title": j.get("title", ""),
+            "company": j.get("company", ""),
+            "location": j.get("location", ""),
+            "description": desc_snippet or "Active verified position on company career portal.",
+        })
 
-    prompt = f"""You are a Recruitment Analyst. Score each job against the candidate. Do NOT modify any job fields.
+    prompt = f"""You are a Recruitment Analyst. Score each job candidate against the position.
+Do NOT echo back title, company, description, or url. Return ONLY the scores keyed by the given job id.
 
 CANDIDATE:
 {profile_text}
 
-JOBS (real data — copy title/company/description/url/platform/location EXACTLY as-is):
-{jobs_text}
+JOBS TO SCORE:
+{json.dumps(minimal_jobs)}
 
 SCORING RULES:
 - BOTH skills AND experience empty → max 35
@@ -126,19 +140,50 @@ SCORING RULES:
 - Strong skill match + experience exists → 70-92
 - Near-perfect match → up to 95
 
-For EACH job return ALL fields unchanged, plus:
-- match_score: integer per rules
-- justification: 1 honest sentence explaining why this candidate matches or has gaps
-- key_requirements: list of relevant tech skills found in title or description
-
-Return JSON: {{"jobs": [{{all original fields + match_score + justification + key_requirements}}]}}
+Return JSON in this EXACT format:
+{{
+  "scores": [
+    {{
+      "id": <job id exactly as provided in input>,
+      "match_score": <integer 0-100 per rules>,
+      "justification": "<1 honest sentence explaining match or gaps>",
+      "key_requirements": ["<tech/skill 1>", "<tech/skill 2>"]
+    }}
+  ]
+}}
 """
+
+    def _apply_scores(scores_list: List[Dict]) -> List[Dict]:
+        score_map = {}
+        for s in scores_list:
+            if isinstance(s, dict) and s.get("id") is not None:
+                score_map[str(s["id"])] = s
+
+        merged = []
+        for idx, j in enumerate(jobs):
+            jid = str(j.get("id") or j.get("external_id") or (idx + 1))
+            s = score_map.get(jid)
+            if s:
+                merged.append({
+                    **j,
+                    "match_score": float(s.get("match_score") or 50),
+                    "justification": str(s.get("justification") or f"Active opening at {j.get('company')}."),
+                    "key_requirements": s.get("key_requirements") or [],
+                })
+            else:
+                merged.append({
+                    **j,
+                    "match_score": 65 if any(sk.lower() in j.get("title", "").lower() for sk in user_profile.get("skills", [])) else 50,
+                    "justification": f"Verified active opening at {j.get('company')}.",
+                    "key_requirements": [sk for sk in user_profile.get("skills", []) if sk.lower() in j.get("title", "").lower()],
+                })
+        return merged
 
     async def _try_model(model: str) -> list:
         last_err = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                print(f"[JobFinderAgent] ➔ Scoring with {model} (attempt {attempt})...")
+                logger.info(f"[JobFinderAgent] ➔ Scoring with {model} (attempt {attempt})...")
                 response = await _client.aio.models.generate_content(
                     model=model,
                     contents=prompt,
@@ -147,14 +192,16 @@ Return JSON: {{"jobs": [{{all original fields + match_score + justification + ke
                         temperature=0.1,
                     ),
                 )
-                return json.loads(response.text).get("jobs", [])
+                data = json.loads(response.text)
+                scores = data.get("scores") or data.get("jobs") or []
+                return _apply_scores(scores)
             except Exception as e:
                 last_err = e
                 err_str = str(e)
                 is_retryable = any(c in err_str for c in RETRYABLE_CODES)
                 if is_retryable and attempt < MAX_RETRIES:
                     delay = BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
-                    print(f"[JobFinderAgent] ➔ [{model}] transient error, retrying in {delay:.1f}s...")
+                    logger.warning(f"[JobFinderAgent] ➔ [{model}] transient error, retrying in {delay:.1f}s...")
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -169,12 +216,12 @@ Return JSON: {{"jobs": [{{all original fields + match_score + justification + ke
                 is_quota = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
                 is_transient = any(c in err for c in RETRYABLE_CODES)
                 if is_quota or is_transient:
-                    print(f"[JobFinderAgent] ➔ [{model}] unavailable — trying next model...")
+                    logger.warning(f"[JobFinderAgent] ➔ [{model}] unavailable — trying next model...")
                 else:
-                    print(f"[JobFinderAgent] ➔ Scoring error (non-retryable): {err}")
+                    logger.error(f"[JobFinderAgent] ➔ Scoring error (non-retryable): {err}")
                     break
 
-    print("[JobFinderAgent] ➔ LLM unavailable — returning verified jobs with baseline score.")
+    logger.warning("[JobFinderAgent] ➔ LLM unavailable — returning verified jobs with baseline score.")
     return [{
         **j,
         "match_score": 65 if any(s.lower() in j["title"].lower() for s in user_profile.get("skills", [])) else 50,
@@ -215,7 +262,7 @@ async def run_job_finder_agent(job_role: str, user_profile: Dict, session: Sessi
     4. Enriches descriptions lazily only for the top 15 survivors.
     5. Scores with Gemini (with fallback), never inventing fake jobs.
     """
-    print(f"[JobFinderAgent] ➔ Starting job scan for role: '{job_role}'")
+    logger.info(f"[JobFinderAgent] ➔ Starting job scan for role: '{job_role}'")
 
     # 1. Fetch active jobs from DB
     active_jobs = session.exec(
@@ -224,17 +271,17 @@ async def run_job_finder_agent(job_role: str, user_profile: Dict, session: Sessi
 
     # If DB has no active jobs yet (e.g. first boot), run initial sync
     if not active_jobs:
-        print("[JobFinderAgent] ➔ IngestedJob repository is empty. Triggering initial feed sync...")
+        logger.info("[JobFinderAgent] ➔ IngestedJob repository is empty. Triggering initial feed sync...")
         await sync_all_active_sources(session)
         active_jobs = session.exec(
             select(IngestedJob).where(IngestedJob.is_active == True)
         ).all()
 
     if not active_jobs:
-        print("[JobFinderAgent] ➔ No active jobs currently available in feed repository.")
+        logger.warning("[JobFinderAgent] ➔ No active jobs currently available in feed repository.")
         return []
 
-    print(f"[JobFinderAgent] ➔ Filtering {len(active_jobs)} active repository jobs...")
+    logger.info(f"[JobFinderAgent] ➔ Filtering {len(active_jobs)} active repository jobs...")
 
     # 2. Word-boundary + hard seniority/location pre-filter
     shortlist = prefilter_ingested_jobs(
@@ -245,10 +292,10 @@ async def run_job_finder_agent(job_role: str, user_profile: Dict, session: Sessi
     )
 
     if not shortlist:
-        print(f"[JobFinderAgent] ➔ No active jobs passed criteria for '{job_role}'.")
+        logger.info(f"[JobFinderAgent] ➔ No active jobs passed criteria for '{job_role}'.")
         return []
 
-    print(f"[JobFinderAgent] ➔ Shortlisted {len(shortlist)} top matching jobs. Enriching descriptions...")
+    logger.info(f"[JobFinderAgent] ➔ Shortlisted {len(shortlist)} top matching jobs. Enriching descriptions...")
 
     # 3. Payload optimization: enrich descriptions only for survivors
     await enrich_greenhouse_descriptions(shortlist)
@@ -261,5 +308,5 @@ async def run_job_finder_agent(job_role: str, user_profile: Dict, session: Sessi
     sanitized = [_sanitize(j) for j in scored if j]
     sanitized.sort(key=lambda x: x["match_score"], reverse=True)
 
-    print(f"[JobFinderAgent] ➔ Returning {len(sanitized)} verified live jobs.")
+    logger.info(f"[JobFinderAgent] ➔ Returning {len(sanitized)} verified live jobs.")
     return sanitized

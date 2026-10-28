@@ -11,11 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+import logging
 from app.core.db import get_session
 from app.models.models import UserProfile, Job, JobMatch
 from app.api.deps import get_current_user, profile_to_dict
 from app.agents.orchestrator import orchestrator
 
+logger = logging.getLogger("jobscout.resume")
 router = APIRouter()
 
 
@@ -53,12 +55,20 @@ async def generate_resume(
     )
 
     initial_state = {
+        "thread_id": f"user_{current_user.id}_job_{job_id}",
         "user_profile": profile_to_dict(current_user),
         "selected_job": job_target,
-        "jobs": [],
+        "repo_links": [r.get("url") for r in (current_user.github_repos or []) if r.get("url")],
+        "enriched_repos": current_user.github_repos or [],
+        "target_role": current_user.target_role or "Software Engineer",
+        "preferred_location": current_user.preferred_location or "India, Remote",
+        "jobs": [job_target],
         "resume_md": "",
         "ats_score": 0.0,
+        "ats_details": {},
+        "improvements": [],
         "critic_feedback": critic_comment or "",
+        "iteration": 0,
         "status": "start",
         "logs": [],
     }
@@ -80,4 +90,4 @@ async def websocket_logs(websocket: WebSocket):
         async for msg in generate_agent_logs():
             await websocket.send_json({"log": msg})
     except WebSocketDisconnect:
-        print("Client disconnected")
+        logger.info("Client disconnected from /logs websocket")

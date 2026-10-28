@@ -30,6 +30,7 @@ class ProfileUpdateRequest(BaseModel):
     headline: Optional[str] = None
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
+    target_role: Optional[str] = None
     preferred_location: Optional[str] = None
     seniority_level: Optional[str] = None
     skills: Optional[List[str]] = None
@@ -72,6 +73,8 @@ def update_my_profile(
         user.github_url = req.github_url
     if req.linkedin_url is not None:
         user.linkedin_url = req.linkedin_url
+    if req.target_role is not None:
+        user.target_role = req.target_role
     if req.preferred_location is not None:
         user.preferred_location = req.preferred_location
     if req.seniority_level is not None:

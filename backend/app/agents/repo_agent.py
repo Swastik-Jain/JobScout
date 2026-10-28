@@ -348,7 +348,7 @@ async def analyze_repos_async(repo_links: List[str]) -> Tuple[Dict, List[Dict]]:
     prompt = _build_repo_analysis_prompt(list(inspected))
 
     response = await client_genai.aio.models.generate_content(
-        model="gemini-2.0-flash",
+        model=settings.gemini_primary_model,
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -448,7 +448,7 @@ async def stream_repo_analysis(repo_links: List[str]) -> AsyncGenerator[str, Non
         prompt = _build_repo_analysis_prompt(inspected_repos)
 
         response = await client_genai.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model=settings.gemini_primary_model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

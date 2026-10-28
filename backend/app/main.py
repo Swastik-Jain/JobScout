@@ -28,6 +28,11 @@ app.add_middleware(
 )
 
 
+from app.core.logging_config import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("jobscout.main")
+
 @app.on_event("startup")
 async def on_startup():
     init_db()
@@ -42,7 +47,7 @@ async def on_startup():
         with Session(engine) as session:
             has_jobs = session.exec(select(IngestedJob)).first()
             if not has_jobs:
-                print("[Startup] IngestedJob table empty. Initiating first-time background feed sync...")
+                logger.info("[Startup] IngestedJob table empty. Initiating first-time background feed sync...")
                 await sync_all_active_sources(session)
 
     asyncio.create_task(_bg_initial_sync())
@@ -65,6 +70,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
+from fastapi import APIRouter
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.profile import router as profile_router
@@ -72,6 +78,17 @@ from app.api.jobs import router as jobs_router
 from app.api.resume import router as resume_router
 from app.api.applications import router as applications_router
 
+# Unified canonical prefix: /api/v1
+api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(health_router)
+api_v1.include_router(auth_router)
+api_v1.include_router(profile_router)
+api_v1.include_router(jobs_router)
+api_v1.include_router(resume_router)
+api_v1.include_router(applications_router)
+app.include_router(api_v1)
+
+# Root-level inclusion for non-breaking backward compatibility
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(profile_router)

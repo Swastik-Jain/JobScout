@@ -12,12 +12,15 @@ Tier 1: Direct public ATS feeds (Greenhouse, Lever, Ashby)
 
 import re
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 import httpx
 from sqlmodel import Session, select
 
 from app.models.models import CompanySource, IngestedJob, utc_now
+
+logger = logging.getLogger("jobscout.ats_adapters")
 
 # Guardrail: regex for slug validation (2-50 chars, alphanumeric + hyphen/underscore)
 SLUG_REGEX = re.compile(r'^[a-z0-9][a-z0-9\-_]{1,48}[a-z0-9]$')
@@ -96,7 +99,7 @@ async def validate_and_register_slug(ats: str, slug: str, session: Session) -> b
 
     total_active = len(session.exec(select(CompanySource).where(CompanySource.is_active == True)).all())
     if total_active >= MAX_ACTIVE_SOURCES:
-        print(f"[ATSAdapters] ➔ Registry cap of {MAX_ACTIVE_SOURCES} reached; skipping '{slug}'.")
+        logger.info(f"[ATSAdapters] ➔ Registry cap of {MAX_ACTIVE_SOURCES} reached; skipping '{slug}'.")
         return False
 
     # Live verification check before saving
@@ -118,7 +121,7 @@ async def validate_and_register_slug(ats: str, slug: str, session: Session) -> b
             if job_count == 0:
                 return False
     except Exception as e:
-        print(f"[ATSAdapters] ➔ Verification failed for {ats}:{slug}: {e}")
+        logger.warning(f"[ATSAdapters] ➔ Verification failed for {ats}:{slug}: {e}")
         return False
 
     # Insert into database
@@ -132,7 +135,7 @@ async def validate_and_register_slug(ats: str, slug: str, session: Session) -> b
     )
     session.add(source)
     session.commit()
-    print(f"[ATSAdapters] ➔ Auto-learned verified {ats} board for '{slug}' ({job_count} active jobs).")
+    logger.info(f"[ATSAdapters] ➔ Auto-learned verified {ats} board for '{slug}' ({job_count} active jobs).")
     return True
 
 
@@ -269,9 +272,9 @@ async def sync_company_source(source: CompanySource, session: Session, client: h
         source.last_error = str(e)[:250]
         if source.fail_count >= 3:
             source.is_active = False
-            print(f"[ATSAdapters] ➔ Source {source.ats}:{source.slug} deactivated after {source.fail_count} failures: {e}")
+            logger.warning(f"[ATSAdapters] ➔ Source {source.ats}:{source.slug} deactivated after {source.fail_count} failures: {e}")
         else:
-            print(f"[ATSAdapters] ➔ Feed error for {source.ats}:{source.slug} (fail #{source.fail_count}): {e}")
+            logger.warning(f"[ATSAdapters] ➔ Feed error for {source.ats}:{source.slug} (fail #{source.fail_count}): {e}")
         session.add(source)
         session.commit()
         return 0
@@ -333,7 +336,7 @@ async def sync_all_active_sources(session: Session, max_concurrent: int = 6) -> 
     Sync all active company sources concurrently using a bounded semaphore.
     """
     sources = session.exec(select(CompanySource).where(CompanySource.is_active == True)).all()
-    print(f"[ATSAdapters] ➔ Starting feed sync across {len(sources)} active company sources...")
+    logger.info(f"[ATSAdapters] ➔ Starting feed sync across {len(sources)} active company sources...")
     sem = asyncio.Semaphore(max_concurrent)
     stats = {"total_sources": len(sources), "synced_sources": 0, "total_jobs": 0}
 
@@ -349,7 +352,7 @@ async def sync_all_active_sources(session: Session, max_concurrent: int = 6) -> 
                 stats["synced_sources"] += 1
                 stats["total_jobs"] += r
 
-    print(f"[ATSAdapters] ➔ Feed sync completed: {stats['synced_sources']}/{stats['total_sources']} sources synced ({stats['total_jobs']} jobs processed).")
+    logger.info(f"[ATSAdapters] ➔ Feed sync completed: {stats['synced_sources']}/{stats['total_sources']} sources synced ({stats['total_jobs']} jobs processed).")
     return stats
 
 

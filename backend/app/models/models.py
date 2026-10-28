@@ -27,6 +27,7 @@ class UserProfile(SQLModel, table=True):
     # github_repos schema: [{url, name, description, tech, stars, complexity_score, agent_comment, verified}]
 
     # Profile preferences for job matching
+    target_role: Optional[str] = Field(default="Software Engineer")
     preferred_location: Optional[str] = Field(default="India, Remote")
     seniority_level: Optional[str] = Field(default="Entry-Level / Fresher")
 

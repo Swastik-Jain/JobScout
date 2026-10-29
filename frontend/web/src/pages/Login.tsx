@@ -47,12 +47,13 @@ export const Login: React.FC = () => {
     if (!validate()) return;
 
     setLoading(true);
+    const cleanEmail = form.email.trim().toLowerCase();
     try {
       if (isLogin) {
-        await login(form.email, form.password);
+        await login(cleanEmail, form.password);
         navigate('/dashboard');
       } else {
-        await register(form.name, form.email, form.password);
+        await register(form.name.trim(), cleanEmail, form.password);
         navigate('/onboarding');
       }
     } catch (err: any) {

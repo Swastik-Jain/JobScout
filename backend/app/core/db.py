@@ -78,6 +78,7 @@ def _auto_migrate_columns(engine):
 
 
 def init_db():
+    import app.models.models  # noqa: F401 - ensures all tables are registered in SQLModel metadata
     SQLModel.metadata.create_all(engine)
     if is_sqlite:
         _auto_migrate_columns(engine)

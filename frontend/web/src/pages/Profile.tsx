@@ -9,6 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 import type { GithubRepo, ExperienceEntry, ProjectEntry, EducationEntry } from '../types';
 import { useTerminal } from '../contexts/TerminalContext';
 import { resolveApiUrl } from '../lib/api';
+import { ProfileForm } from '../components/ProfileForm';
+import { ProfileStrengthMeter } from '../components/ProfileStrengthMeter';
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 const InputRow: React.FC<{
@@ -89,6 +91,7 @@ export const Profile: React.FC = () => {
   // Editing flags
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showFullEditor, setShowFullEditor] = useState(false);
 
   // ── Local drafts (one per section) ──
   const [draftInfo, setDraftInfo] = useState({
@@ -296,10 +299,37 @@ export const Profile: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-10">
-      <div className="mb-2">
-        <h2 className="text-2xl font-bold tracking-tight text-white">Profile</h2>
-        <p className="text-zinc-400 text-sm mt-1">Manage your profile — used by the AI to find and apply for jobs.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white">Profile</h2>
+          <p className="text-zinc-400 text-sm mt-1">Manage your profile — strictly used to discover and tailor job opportunities.</p>
+        </div>
+        <button
+          onClick={() => setShowFullEditor(!showFullEditor)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition cursor-pointer self-start sm:self-auto"
+        >
+          <Pencil size={13} /> {showFullEditor ? 'View Profile Summary' : 'Edit Full Profile'}
+        </button>
       </div>
+
+      {/* Profile Strength Meter */}
+      <ProfileStrengthMeter profile={user || {}} isFresher={!user?.experience?.length} />
+
+      {showFullEditor ? (
+        <div className="glass p-6 rounded-2xl border border-zinc-800">
+          <ProfileForm
+            initialData={user || {}}
+            mode="edit"
+            submitLabel="Save Profile Changes"
+            onSave={async (data) => {
+              await updateProfile(data);
+              setShowFullEditor(false);
+            }}
+            onCancel={() => setShowFullEditor(false)}
+          />
+        </div>
+      ) : (
+        <>
 
       {/* Onboarding hint */}
       {isNewUser && (
@@ -735,7 +765,8 @@ export const Profile: React.FC = () => {
           </div>
         )}
       </div>
-
+        </>
+      )}
 
     </div>
   );

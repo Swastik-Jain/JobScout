@@ -16,7 +16,7 @@ import {
   Search,
   ArrowRight,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -74,6 +74,7 @@ const ScoreBadge: React.FC<{ score: number; small?: boolean }> = ({ score, small
 export const Overview: React.FC = () => {
   const { user } = useAuth();
   const { pushLog, clearLogs } = useTerminal();
+  const location = useLocation();
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<AppRecord[]>([]);
@@ -118,9 +119,13 @@ export const Overview: React.FC = () => {
   });
 
   useEffect(() => {
-    loadSavedJobs();
-    loadApplications();
-  }, []);
+    if (location.state?.autoScan) {
+      handleScan();
+    } else {
+      loadSavedJobs();
+      loadApplications();
+    }
+  }, [location.state]);
 
   const loadSavedJobs = async () => {
     try {
@@ -366,8 +371,8 @@ export const Overview: React.FC = () => {
             {scanning ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <RefreshCw size={28} className="animate-spin text-blue-400 mb-3" />
-                <p className="text-white font-medium text-sm">Querying Live ATS Boards...</p>
-                <p className="text-zinc-500 text-xs mt-1">Ingesting direct feeds from Greenhouse, Lever, and Ashby</p>
+                <p className="text-white font-medium text-sm">Finding roles for you...</p>
+                <p className="text-zinc-500 text-xs mt-1">Ingesting direct feeds from Greenhouse, Lever, and Ashby matching your confirmed profile</p>
               </div>
             ) : filteredJobs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center px-4">

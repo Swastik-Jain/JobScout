@@ -618,11 +618,11 @@ export const MissionControl: React.FC = () => {
 
       {/* ── Header ── */}
       <div>
-        <div className="flex items-center gap-3 mb-1">
-          <Rocket size={26} className="text-blue-400" />
-          <h2 className="text-4xl font-bold tracking-tight text-white">Mission Control</h2>
+        <div className="flex items-center gap-2.5 mb-1">
+          <Rocket size={20} className="text-blue-400" />
+          <h2 className="text-2xl font-bold tracking-tight text-white">Mission Control</h2>
         </div>
-        <p className="text-zinc-400 text-base ml-10">
+        <p className="text-zinc-400 text-sm">
           Track your applications with real-time fraud detection. Every job listing is automatically scanned for scam indicators.
         </p>
       </div>

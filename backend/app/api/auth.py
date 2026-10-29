@@ -38,8 +38,9 @@ def register(req: RegisterRequest, session: Session = Depends(get_session)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered.")
 
+    cleaned_name = " ".join(p.capitalize() for p in req.name.strip().split()) if req.name else req.name
     user = UserProfile(
-        name=req.name,
+        name=cleaned_name,
         email=req.email,
         phone=req.phone,
         hashed_password=hash_password(req.password),

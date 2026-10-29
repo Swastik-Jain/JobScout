@@ -273,10 +273,10 @@ export const Profile: React.FC = () => {
         })));
 
         const verifiedCount = newRepos.filter((r: any) => r.verified).length;
-        pushLog(`[RepoAgent] ➔ ✅ Intelligence sync complete. ${verifiedCount}/${newRepos.length} repo(s) verified via GitHub API.`);
+        pushLog(`[RepoAgent] Intelligence sync complete. ${verifiedCount}/${newRepos.length} repo(s) verified via GitHub API.`);
       }
     } catch {
-      pushLog('[RepoAgent] ➔ ❌ Sync failed. Check backend connection.');
+      pushLog('[RepoAgent] Sync failed. Check backend connection.');
     } finally {
       setRepoAnalyzing(false);
     }
@@ -297,8 +297,8 @@ export const Profile: React.FC = () => {
   return (
     <div className="space-y-6 pb-10">
       <div className="mb-2">
-        <h2 className="text-4xl font-bold tracking-tight text-white">Profile</h2>
-        <p className="text-zinc-400 text-base mt-1">Manage your profile — used by the AI to find and apply for jobs.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-white">Profile</h2>
+        <p className="text-zinc-400 text-sm mt-1">Manage your profile — used by the AI to find and apply for jobs.</p>
       </div>
 
       {/* Onboarding hint */}
@@ -309,7 +309,7 @@ export const Profile: React.FC = () => {
           className="flex items-center gap-3 bg-blue-950/40 border border-blue-700/30 rounded-xl px-5 py-3 text-blue-300 text-sm"
         >
           <Zap size={16} className="shrink-0 text-blue-400" />
-          <span>👋 Complete your profile once — it's permanently saved and auto-loaded every time you log in.</span>
+          <span>Complete your profile once — it's permanently saved and auto-loaded every time you log in.</span>
         </motion.div>
       )}
 
@@ -343,7 +343,7 @@ export const Profile: React.FC = () => {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-xl font-bold text-white">{user.name || '—'}</h3>
+                <h3 className="text-xl font-bold text-white capitalize">{user.name || '—'}</h3>
                 {user.target_role && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
                     Target: {user.target_role}

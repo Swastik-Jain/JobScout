@@ -42,7 +42,7 @@ export const Sidebar: React.FC = () => {
               {user.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
             <div className="min-w-0">
-              <p className="text-white text-sm font-semibold truncate">{user.name}</p>
+              <p className="text-white text-sm font-semibold truncate capitalize">{user.name}</p>
               <p className="text-zinc-500 text-xs truncate">{user.email}</p>
             </div>
           </div>

@@ -212,7 +212,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               onClick={() => setActiveTab('resume')}
               className={`px-4 py-3 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
                 activeTab === 'resume'
-                  ? 'border-primary text-primary'
+                  ? 'border-blue-500 text-blue-400'
                   : 'border-transparent text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -222,7 +222,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               onClick={() => setActiveTab('diff')}
               className={`px-4 py-3 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
                 activeTab === 'diff'
-                  ? 'border-primary text-primary'
+                  ? 'border-blue-500 text-blue-400'
                   : 'border-transparent text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -232,7 +232,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               onClick={() => setActiveTab('cover')}
               className={`px-4 py-3 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
                 activeTab === 'cover'
-                  ? 'border-primary text-primary'
+                  ? 'border-blue-500 text-blue-400'
                   : 'border-transparent text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -242,7 +242,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               onClick={() => setActiveTab('qa')}
               className={`px-4 py-3 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
                 activeTab === 'qa'
-                  ? 'border-primary text-primary'
+                  ? 'border-blue-500 text-blue-400'
                   : 'border-transparent text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -256,7 +256,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             disabled={preparing}
             className="text-xs text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 py-1 px-2.5 rounded-lg border border-zinc-800 hover:bg-zinc-900 transition disabled:opacity-50"
           >
-            <RotateCw className={`w-3 h-3 ${preparing ? 'animate-spin text-primary' : ''}`} />
+            <RotateCw className={`w-3 h-3 ${preparing ? 'animate-spin text-blue-400' : ''}`} />
             {preparing ? 'Tailoring…' : 'Regenerate'}
           </button>
         </div>
@@ -264,13 +264,46 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {loading || preparing ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-              <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <div>
-                <p className="text-white font-medium">Tailoring Application Materials…</p>
-                <p className="text-zinc-500 text-xs mt-1">
-                  Enforcing strict no-fabrication constraints against your ground-truth profile.
-                </p>
+            <div className="py-8 px-4 max-w-xl mx-auto space-y-6">
+              {/* Step by step progress */}
+              <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-blue-400 animate-pulse" />
+                    <span className="text-sm font-semibold text-white">Autonomous Agent Tailoring in Progress</span>
+                  </div>
+                  <span className="text-xs font-mono text-zinc-400 animate-pulse">Running Agents…</span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-xs text-emerald-400 font-medium">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Step 1: Parsed job requirements & tech stack</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-blue-300 font-medium">
+                    <RotateCw className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+                    <span>Step 2: Grounding resume with verified GitHub projects & skills</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-zinc-500">
+                    <div className="w-4 h-4 rounded-full border border-zinc-700 shrink-0" />
+                    <span>Step 3: Dual-factor ATS audit & anti-fabrication check</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Skeleton visual placeholder */}
+              <div className="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/40 space-y-4 animate-pulse">
+                <div className="h-4 bg-zinc-800/80 rounded w-1/3"></div>
+                <div className="space-y-2 pt-2">
+                  <div className="h-3 bg-zinc-800/60 rounded w-full"></div>
+                  <div className="h-3 bg-zinc-800/60 rounded w-5/6"></div>
+                  <div className="h-3 bg-zinc-800/60 rounded w-4/6"></div>
+                </div>
+                <div className="h-4 bg-zinc-800/80 rounded w-1/4 pt-2"></div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-zinc-800/60 rounded w-full"></div>
+                  <div className="h-3 bg-zinc-800/60 rounded w-3/4"></div>
+                </div>
               </div>
             </div>
           ) : (
@@ -311,8 +344,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                             <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Matched Keywords:</div>
                             <div className="flex flex-wrap gap-1">
                               {atsDetails.matched_keywords.slice(0, 10).map((kw: string, idx: number) => (
-                                <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
-                                  ✓ {kw}
+                                <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 flex items-center gap-1">
+                                  <Check size={10} /> {kw}
                                 </span>
                               ))}
                             </div>
@@ -414,8 +447,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                       <span className="text-xs font-semibold text-zinc-400">Matched ATS Keywords:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {atsDetails.matched_keywords.map((kw: string, i: number) => (
-                          <span key={i} className="px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-950/40 text-emerald-300 border border-emerald-800/40">
-                            ✓ {kw}
+                          <span key={i} className="px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
+                            <Check size={11} /> {kw}
                           </span>
                         ))}
                       </div>
@@ -568,9 +601,9 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               href={job.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-semibold flex items-center gap-2 transition"
+              className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-semibold flex items-center gap-2 transition border border-zinc-700/60 shadow-sm"
             >
-              <ExternalLink className="w-4 h-4 text-primary" /> Open Application Portal
+              <ExternalLink className="w-4 h-4 text-blue-400" /> Open Application Portal
             </a>
           </div>
 
@@ -578,14 +611,14 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             <button
               onClick={() => handleTransition('withdrawn')}
               disabled={actionLoading}
-              className="px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 transition"
+              className="px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white text-sm font-medium transition shadow-sm disabled:opacity-50"
             >
               Not Applying
             </button>
             <button
               onClick={() => handleTransition('applied')}
               disabled={actionLoading}
-              className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-zinc-950 font-bold text-sm flex items-center gap-2 transition shadow-lg shadow-primary/20 disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center gap-2 transition shadow-lg shadow-emerald-950/40 border border-emerald-500/40 disabled:opacity-50 cursor-pointer"
             >
               <CheckCircle className="w-4 h-4" />
               {actionLoading ? 'Saving…' : 'I Applied'}

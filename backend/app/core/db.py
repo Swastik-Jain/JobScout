@@ -55,8 +55,32 @@ def seed_company_sources(session: Session):
         logger.warning(f"[DB] Could not seed company sources: {e}")
 
 
+def _auto_migrate_columns(engine):
+    """Ensures newly added SQLModel columns exist in SQLite without requiring manual migrations."""
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        with engine.begin() as conn:
+            for table_name, table in SQLModel.metadata.tables.items():
+                if not inspector.has_table(table_name):
+                    continue
+                existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+                for col in table.columns:
+                    if col.name not in existing_cols:
+                        col_type = col.type.compile(engine.dialect)
+                        default_clause = ""
+                        if col.default is not None and hasattr(col.default, "arg"):
+                            default_clause = f" DEFAULT '{col.default.arg}'"
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}{default_clause}"))
+                        logger.info(f"[DB] Auto-migrated: added column {col.name} ({col_type}) to {table_name}")
+    except Exception as e:
+        logger.warning(f"[DB] Auto-migration check warning: {e}")
+
+
 def init_db():
     SQLModel.metadata.create_all(engine)
+    if is_sqlite:
+        _auto_migrate_columns(engine)
     with Session(engine) as session:
         seed_company_sources(session)
 

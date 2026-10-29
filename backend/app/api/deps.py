@@ -46,9 +46,10 @@ def get_current_user(
 
 def profile_to_dict(user: UserProfile) -> dict:
     """Serialize a UserProfile ORM object to a plain dict for API responses."""
+    formatted_name = " ".join(p.capitalize() for p in user.name.strip().split()) if user.name else user.name
     return {
         "id": user.id,
-        "name": user.name,
+        "name": formatted_name,
         "email": user.email,
         "phone": user.phone,
         "headline": user.headline,

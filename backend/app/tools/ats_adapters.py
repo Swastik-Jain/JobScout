@@ -413,8 +413,15 @@ def prefilter_ingested_jobs(
     ENTRY_KEYWORDS = ["intern", "internship", "new grad", "graduate", "entry", "junior", "jr", "jr.", "associate", "sde-1", "sde 1", "sde i", "engineer i"]
 
     # Location keywords
-    INDIA_LOCATIONS = {"india", "bangalore", "bengaluru", "hyderabad", "pune", "delhi", "mumbai", "gurgaon", "noida", "chennai"}
-    REMOTE_LOCATIONS = {"remote", "worldwide", "anywhere", "emea", "apac", "home based", "home-based", "distributed", "global"}
+    INDIA_LOCATIONS = {"india", "bangalore", "bengaluru", "hyderabad", "pune", "delhi", "mumbai", "gurgaon", "noida", "chennai", "kolkata", "ahmedabad"}
+    WORLDWIDE_LOCATIONS = {"worldwide", "global", "anywhere", "all locations", "apac", "emea"}
+    # Explicit foreign country-locked indicators (e.g. "Remote - Poland", "Remote - Spain", "Remote - Canada")
+    FOREIGN_COUNTRY_LOCKS = {
+        "poland", "spain", "canada", "germany", "france", "brazil", "united kingdom", "uk",
+        "london", "australia", "netherlands", "sweden", "austria", "mexico", "ireland",
+        "japan", "singapore", "united states", "usa", "san francisco", "new york", "seattle",
+        "chicago", "boston", "austin", "denver", "california", "texas"
+    }
 
     role_words = [w.lower() for w in re.findall(r'\b\w+\b', target_role) if len(w) > 1]
 
@@ -437,14 +444,17 @@ def prefilter_ingested_jobs(
                 continue
 
         # ── HARD FILTER 2: LOCATION ───────────────────────────────────────────
-        # If user prefers India/Remote, drop explicit local-only US/EU jobs that have no remote/India match
         is_india = any(k in loc for k in INDIA_LOCATIONS)
-        is_remote = any(k in loc for k in REMOTE_LOCATIONS) or "remote" in title
+        is_worldwide = any(k in loc for k in WORLDWIDE_LOCATIONS)
+        is_generic_remote = ("remote" in loc or "remote" in title) and not any(fc in loc for fc in FOREIGN_COUNTRY_LOCKS)
 
-        if "india" in location_pref or "remote" in location_pref:
-            # If location is present and explicitly outside without remote/India option
-            has_explicit_foreign = any(c in loc for c in ("united states", "usa", "san francisco", "new york", "london", "seattle", "germany", "france"))
-            if has_explicit_foreign and not (is_india or is_remote):
+        if "india" in location_pref:
+            # Reject country-locked foreign postings even if they say "Remote" (e.g., "Remote - Poland", "Remote - Canada")
+            is_foreign_locked = any(fc in loc for fc in FOREIGN_COUNTRY_LOCKS) and not is_india
+            if is_foreign_locked and not is_worldwide:
+                continue
+            # Must match either India, truly global/worldwide, or generic open remote
+            if not (is_india or is_worldwide or is_generic_remote):
                 continue
 
         # ── WEIGHTED SCORING ──────────────────────────────────────────────────
@@ -452,7 +462,7 @@ def prefilter_ingested_jobs(
 
         # Exact role phrase match in title
         if target_role.lower() in title:
-            score += 12
+            score += 15
 
         # Role words in title
         for rw in role_words:
@@ -475,18 +485,33 @@ def prefilter_ingested_jobs(
             elif desc and _has_word(sk, desc):
                 score += 2
 
-        # Location bonus
+        # Location bonus (strong preference for India postings)
         if is_india:
-            score += 5
-        elif is_remote:
-            score += 3
+            score += 10
+        elif is_worldwide or is_generic_remote:
+            score += 4
 
         if score > 0:
             candidates.append((score, j))
 
-    # Sort descending by score, take top N
+    # Sort descending by score
     candidates.sort(key=lambda x: x[0], reverse=True)
-    shortlisted_jobs = [c[1] for c in candidates[:max_results]]
+
+    # ── DEDUPLICATION ─────────────────────────────────────────────────────────
+    # Group and deduplicate identical roles from the same company (e.g., same role listed across 3 regions)
+    seen_roles = set()
+    deduped_candidates = []
+    for score, j in candidates:
+        # Normalize title by removing region tags in parentheses or brackets
+        norm_title = re.sub(r'[\(\[].*?[\)\]]', '', j.title).strip().lower()
+        norm_company = j.company.strip().lower()
+        role_key = (norm_company, norm_title)
+        if role_key in seen_roles:
+            continue
+        seen_roles.add(role_key)
+        deduped_candidates.append(j)
+        if len(deduped_candidates) >= max_results:
+            break
 
     return [
         {
@@ -500,7 +525,7 @@ def prefilter_ingested_jobs(
             "platform": j.ats.title(),
             "source": "ats_api",
         }
-        for j in shortlisted_jobs
+        for j in deduped_candidates
     ]
 
 

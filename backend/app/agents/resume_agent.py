@@ -222,8 +222,8 @@ class ResumeAgent:
                 is_retryable = any(code in err_str for code in RETRYABLE_STATUS_CODES)
                 if is_retryable and attempt < MAX_RETRIES:
                     delay = BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
-                    logger.warning(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), ")
-                          f"retrying in {delay:.1f}s... Error: {err_str[:120]}")
+                    logger.warning(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), "
+                                   f"retrying in {delay:.1f}s... Error: {err_str[:120]}")
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -270,7 +270,7 @@ class ResumeAgent:
                 # Enforce no fabrication on the generated resume
                 is_valid, errors = validate_no_fabrication(out.resume_md, user_profile)
                 if not is_valid:
-                    logger.warning(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile."))
+                    logger.warning(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile.")
                     out.resume_md = base_resume
                     out.improvements.append("Reverted unverified modifications to preserve strict candidate accuracy.")
 
@@ -286,11 +286,11 @@ class ResumeAgent:
                 is_transient = any(code in err for code in RETRYABLE_STATUS_CODES)
                 is_model_unavailable = "404" in err or "NOT_FOUND" in err
                 if is_quota:
-                    logger.warning(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model..."))
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model...")
                 elif is_transient:
-                    logger.warning(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model..."))
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model...")
                 elif is_model_unavailable:
-                    logger.warning(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model..."))
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model...")
                 else:
                     logger.error(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
                     ats_score, _ = compute_ats_score(base_resume, job_description, user_skills)

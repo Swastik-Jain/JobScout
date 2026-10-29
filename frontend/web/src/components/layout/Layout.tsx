@@ -12,11 +12,11 @@ export const Layout: React.FC = () => {
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-800/10 blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-800/10 blur-[120px] pointer-events-none" />
         
-        <main className="flex-1 overflow-y-auto p-7 relative z-10">
+        <main className="flex-1 overflow-y-auto p-7">
           <Outlet />
         </main>
         
-        <div className="w-full relative z-20">
+        <div className="w-full">
           <Terminal />
         </div>
       </div>

@@ -74,7 +74,7 @@ export const OptimizationInsights: React.FC<OptimizationInsightsProps> = ({ insi
               >
                 <ShieldCheck size={15} className="text-purple-400 mr-3 mt-0.5 shrink-0" />
                 <div className="min-w-0">
-                  <span className="text-purple-300 font-medium">✅ Verified:</span>{' '}
+                  <span className="text-purple-300 font-medium">Verified:</span>{' '}
                   <span>{repo.comment}</span>
                   {repo.tech.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">

@@ -293,7 +293,7 @@ export const BlockOverlay: React.FC<{
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold uppercase tracking-widest text-red-500 mb-0.5">
-            ⛔ Heuristic Alert — Job Flagged
+            Heuristic Alert — Job Flagged
           </p>
           <h3 className="text-white font-bold text-base truncate">{job.job_title || job.title}</h3>
           <p className="text-zinc-400 text-sm">{job.company}</p>
@@ -379,7 +379,7 @@ export const WarningModal: React.FC<{
           <ShieldAlert size={20} className="text-yellow-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-widest text-yellow-600 mb-0.5">⚠️ Caution Advised</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-yellow-600 mb-0.5">Caution Advised</p>
           <h3 className="text-white font-bold text-sm truncate">{job.job_title || job.title}</h3>
           <p className="text-zinc-400 text-xs">{job.company}</p>
         </div>

@@ -18,7 +18,10 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [logs, setLogs] = useState<string[]>([]);
 
   const pushLog = useCallback((log: string) => {
-    setLogs(prev => [...prev, log]);
+    setLogs(prev => {
+      if (prev.length > 0 && prev[prev.length - 1] === log) return prev;
+      return [...prev, log];
+    });
   }, []);
 
   const clearLogs = useCallback(() => setLogs([]), []);

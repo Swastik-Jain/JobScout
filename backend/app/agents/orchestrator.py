@@ -72,7 +72,7 @@ async def repo_intelligence_node(state: AgentState) -> Dict:
         }
 
     try:
-        analyzed = await analyze_repos_sync(links)
+        analyzed = analyze_repos_sync(links)
         repos_data = analyzed.get("repos", [])
         verified_count = sum(1 for r in repos_data if r.get("verified"))
         return {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Fingerprint, Mail, Lock, ArrowRight, UserCircle, AlertCircle,
-  BrainCircuit, Target, Rocket, ShieldCheck, Eye, EyeOff,
+  FileText, Target, CheckCircle2, ShieldCheck, Eye, EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -53,7 +53,7 @@ export const Login: React.FC = () => {
       } else {
         await register(form.name, form.email, '', form.password);
       }
-      navigate('/dashboard/profile');
+      navigate('/dashboard');
     } catch (err: any) {
       const msg =
         err?.response?.data?.detail ||
@@ -67,10 +67,10 @@ export const Login: React.FC = () => {
   };
 
   const features = [
-    { icon: <BrainCircuit size={18} className="text-purple-400" />, text: 'AI-powered resume optimization' },
-    { icon: <Target size={18} className="text-blue-400" />, text: 'Autonomous job discovery & matching' },
-    { icon: <Rocket size={18} className="text-green-400" />, text: 'One-click application deployment' },
-    { icon: <ShieldCheck size={18} className="text-yellow-400" />, text: 'Real-time fraud detection engine' },
+    { icon: <Target size={18} className="text-blue-400" />, text: 'Verified roles from official employer ATS feeds' },
+    { icon: <FileText size={18} className="text-purple-400" />, text: 'Resumes tailored strictly from your real profile' },
+    { icon: <ShieldCheck size={18} className="text-emerald-400" />, text: 'Honest materials — no fabricated experience' },
+    { icon: <CheckCircle2 size={18} className="text-cyan-400" />, text: 'Pipeline tracking from saved to offer' },
   ];
 
   return (
@@ -88,7 +88,6 @@ export const Login: React.FC = () => {
           </div>
           <div>
             <span className="text-white font-bold text-lg tracking-tight">JobScout</span>
-            <span className="text-xs text-blue-400 font-mono ml-1.5 font-semibold">AI</span>
           </div>
         </div>
 
@@ -96,13 +95,13 @@ export const Login: React.FC = () => {
         <div className="space-y-6 relative z-10">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-white leading-tight mb-3">
-              Your autonomous<br />
+              Find verified roles. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                career intelligence engine.
+                Tailor honest applications.
               </span>
             </h1>
             <p className="text-zinc-400 text-sm leading-relaxed max-w-sm">
-              Deploy specialized agents to ground your resume against real codebases, discover active listings, and tailor submissions.
+              Discover active job board listings, tailor your materials strictly from your confirmed experience, and keep your pipeline organized.
             </p>
           </div>
 
@@ -126,7 +125,7 @@ export const Login: React.FC = () => {
 
         {/* Bottom note */}
         <p className="text-zinc-600 text-xs relative z-10">
-          &copy; 2026 JobScout AI. Verified ATS applications & anti-fabrication pipeline.
+          &copy; 2026 JobScout. Transparent job discovery, grounded tailoring & application tracking.
         </p>
       </div>
 
@@ -145,7 +144,7 @@ export const Login: React.FC = () => {
             <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
               <Fingerprint size={16} className="text-white" />
             </div>
-            <span className="text-white font-bold text-lg">JobScout AI</span>
+            <span className="text-white font-bold text-lg">JobScout</span>
           </div>
 
           <h2 className="text-2xl font-bold text-white mb-1.5">
@@ -153,8 +152,8 @@ export const Login: React.FC = () => {
           </h2>
           <p className="text-zinc-400 text-sm mb-6">
             {isLogin
-              ? 'Sign in to access your autonomous job dashboard.'
-              : 'Sign up to discover opportunities and tailor applications.'}
+              ? 'Sign in to access your saved jobs and applications.'
+              : 'Sign up to discover verified roles and tailor application materials.'}
           </p>
 
           {/* Tab Toggle */}
@@ -164,7 +163,7 @@ export const Login: React.FC = () => {
                 key={tab}
                 type="button"
                 onClick={() => { setIsLogin(tab === 'Login'); setError(null); setFieldErrors({}); }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                   (tab === 'Login') === isLogin
                     ? 'bg-zinc-800 text-white shadow-sm'
                     : 'text-zinc-500 hover:text-zinc-300'
@@ -207,7 +206,7 @@ export const Login: React.FC = () => {
                       type="text"
                       value={form.name}
                       onChange={set('name')}
-                      placeholder="e.g. Swastik Jain"
+                      placeholder="Full name"
                       className="w-full bg-transparent pl-11 pr-4 py-3 text-white text-sm outline-none placeholder:text-zinc-600"
                     />
                   </div>
@@ -227,7 +226,7 @@ export const Login: React.FC = () => {
                   type="email"
                   value={form.email}
                   onChange={set('email')}
-                  placeholder="name@example.com"
+                  placeholder="name@domain.com"
                   className="w-full bg-transparent pl-11 pr-4 py-3 text-white text-sm outline-none placeholder:text-zinc-600"
                 />
               </div>
@@ -251,7 +250,7 @@ export const Login: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -265,7 +264,7 @@ export const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl px-4 py-3 mt-3 flex items-center justify-center transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-900/30 text-sm gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl px-4 py-3 mt-3 flex items-center justify-center transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-900/30 text-sm gap-2 cursor-pointer"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

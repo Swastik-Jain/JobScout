@@ -202,7 +202,7 @@ export const Overview: React.FC = () => {
           <h2 className="text-2xl font-bold tracking-tight text-white">
             {user ? `Welcome, ${formatName(user.name)}` : 'Dashboard'}
           </h2>
-          <p className="text-zinc-400 mt-1 text-sm">Your autonomous job command center.</p>
+          <p className="text-zinc-400 mt-1 text-sm">Your career discovery & application command center.</p>
         </div>
         <button
           onClick={handleScan}
@@ -220,7 +220,7 @@ export const Overview: React.FC = () => {
           <div className="flex items-center justify-between pb-4 border-b border-zinc-800/60">
             <div>
               <h3 className="text-base font-bold text-white tracking-tight">Onboarding Checklist</h3>
-              <p className="text-zinc-400 text-xs mt-0.5">Complete these steps to activate your autonomous career pipeline.</p>
+              <p className="text-zinc-400 text-xs mt-0.5">Complete these steps to activate your career pipeline.</p>
             </div>
             <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-blue-950/60 text-blue-300 border border-blue-800/40 font-semibold">
               Get Started

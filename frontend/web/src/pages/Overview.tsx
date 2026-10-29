@@ -241,7 +241,7 @@ export const Overview: React.FC = () => {
               </div>
               <p className="text-sm font-semibold text-white">Target Role & Skills</p>
               <p className="text-xs text-zinc-400 mt-1">Set preferred job title and tech stack.</p>
-              <Link to="/dashboard/profile" className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3 font-medium">
+              <Link to="/profile" className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3 font-medium">
                 Edit Profile <ArrowRight size={11} />
               </Link>
             </div>
@@ -254,7 +254,7 @@ export const Overview: React.FC = () => {
               </div>
               <p className="text-sm font-semibold text-white">GitHub Repositories</p>
               <p className="text-xs text-zinc-400 mt-1">Ground resumes in verified personal codebases.</p>
-              <Link to="/dashboard/profile" className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3 font-medium">
+              <Link to="/profile" className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3 font-medium">
                 Verify Repos <ArrowRight size={11} />
               </Link>
             </div>

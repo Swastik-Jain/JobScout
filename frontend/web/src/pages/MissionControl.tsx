@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Rocket, Clock, CheckCircle2,
+  Layers, Clock, CheckCircle2,
   ShieldAlert, ShieldCheck, ShieldOff, Shield,
   AlertTriangle, ExternalLink,
   Building2, MapPin, Zap, ChevronDown, ChevronUp,
@@ -619,11 +619,11 @@ export const MissionControl: React.FC = () => {
       {/* ── Header ── */}
       <div>
         <div className="flex items-center gap-2.5 mb-1">
-          <Rocket size={20} className="text-blue-400" />
-          <h2 className="text-2xl font-bold tracking-tight text-white">Mission Control</h2>
+          <Layers size={20} className="text-blue-400" />
+          <h2 className="text-2xl font-bold tracking-tight text-white">Applications Tracker</h2>
         </div>
         <p className="text-zinc-400 text-sm">
-          Track your applications with real-time fraud detection. Every job listing is automatically scanned for scam indicators.
+          Track your application pipeline with stage management and employer legitimacy verification.
         </p>
       </div>
 
@@ -863,3 +863,6 @@ export const MissionControl: React.FC = () => {
     </div>
   );
 };
+
+export const Applications = MissionControl;
+

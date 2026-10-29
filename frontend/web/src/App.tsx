@@ -64,29 +64,23 @@ function App() {
               }
             />
 
+            {/* Primary Navigation Routes */}
             <Route
-              path="/jobs"
               element={
                 <ProtectedRoute>
                   <Layout />
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Overview />} />
+              <Route path="/jobs" element={<Overview />} />
+              <Route path="/applications" element={<MissionControl />} />
+              <Route path="/profile" element={<Profile />} />
             </Route>
 
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Overview />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="applications" element={<MissionControl />} />
-            </Route>
+            {/* Backwards-compatible Redirects */}
+            <Route path="/dashboard" element={<Navigate to="/jobs" replace />} />
+            <Route path="/dashboard/applications" element={<Navigate to="/applications" replace />} />
+            <Route path="/dashboard/profile" element={<Navigate to="/profile" replace />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

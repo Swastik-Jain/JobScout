@@ -9,8 +9,8 @@ interface AuthContextValue {
   user: UserProfile | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<UserProfile>;
+  register: (name: string, email: string, password: string, phone?: string) => Promise<UserProfile>;
   logout: () => void;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -49,20 +49,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => { refreshProfile(); }, [refreshProfile]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<UserProfile> => {
     const res = await api.post('/auth/login', { email, password });
     const { token: t, profile } = res.data;
     localStorage.setItem('jb_token', t);
     setToken(t);
     setUser(profile);
+    return profile;
   };
 
-  const register = async (name: string, email: string, password: string, phone?: string) => {
+  const register = async (name: string, email: string, password: string, phone?: string): Promise<UserProfile> => {
     const res = await api.post('/auth/register', { name, email, password, phone: phone || null });
     const { token: t, profile } = res.data;
     localStorage.setItem('jb_token', t);
     setToken(t);
     setUser(profile);
+    return profile;
   };
 
   const logout = () => {

@@ -49,6 +49,7 @@ export interface UserProfile {
   projects: ProjectEntry[];
   education: EducationEntry[];
   github_repos: GithubRepo[];
+  profile_complete: boolean;
   created_at?: string;
   updated_at?: string;
 }

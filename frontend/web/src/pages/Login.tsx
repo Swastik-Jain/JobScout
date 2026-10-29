@@ -50,8 +50,12 @@ export const Login: React.FC = () => {
     const cleanEmail = form.email.trim().toLowerCase();
     try {
       if (isLogin) {
-        await login(cleanEmail, form.password);
-        navigate('/dashboard');
+        const profile = await login(cleanEmail, form.password);
+        if (profile.profile_complete) {
+          navigate('/jobs');
+        } else {
+          navigate('/onboarding');
+        }
       } else {
         await register(form.name.trim(), cleanEmail, form.password);
         navigate('/onboarding');

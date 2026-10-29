@@ -50,10 +50,11 @@ export const Login: React.FC = () => {
     try {
       if (isLogin) {
         await login(form.email, form.password);
+        navigate('/dashboard');
       } else {
-        await register(form.name, form.email, '', form.password);
+        await register(form.name, form.email, form.password);
+        navigate('/onboarding');
       }
-      navigate('/dashboard');
     } catch (err: any) {
       const msg =
         err?.response?.data?.detail ||

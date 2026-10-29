@@ -10,7 +10,7 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, phone: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -57,8 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(profile);
   };
 
-  const register = async (name: string, email: string, phone: string, password: string) => {
-    const res = await api.post('/auth/register', { name, email, phone, password });
+  const register = async (name: string, email: string, password: string, phone?: string) => {
+    const res = await api.post('/auth/register', { name, email, password, phone: phone || null });
     const { token: t, profile } = res.data;
     localStorage.setItem('jb_token', t);
     setToken(t);

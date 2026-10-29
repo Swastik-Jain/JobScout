@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Layout } from './components/layout/Layout';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
+import { Onboarding } from './pages/Onboarding';
 import { Overview } from './pages/Overview';
 import { Profile } from './pages/Profile';
 import { MissionControl } from './pages/MissionControl';
@@ -29,6 +30,14 @@ function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/dashboard"

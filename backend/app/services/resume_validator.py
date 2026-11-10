@@ -11,7 +11,7 @@ Resume Validator & Deterministic Renderer
 
 import re
 import logging
-from typing import Dict, List, Tuple, Set, Optional
+from typing import Dict, List, Tuple, Set, Optional, Any
 
 logger = logging.getLogger("jobscout.resume_validator")
 
@@ -131,13 +131,143 @@ def extract_ground_truth_entities(profile: Dict) -> Dict[str, Set[str]]:
     }
 
 
-def validate_no_fabrication(generated_text: str, profile: Dict) -> Tuple[bool, List[str]]:
+def _normalize_ws(s: str) -> str:
+    return " ".join(s.strip().split()).lower()
+
+
+def _normalize_url(url: str) -> str:
+    u = url.strip().lower()
+    for prefix in ("https://", "http://", "www."):
+        if u.startswith(prefix):
+            u = u[len(prefix):]
+    return u.rstrip("/")
+
+
+def validate_resume_data(resume: "ResumeData", profile: Dict) -> Tuple[bool, List[str]]:
     """
-    Validates that the generated resume or cover letter does not claim unearned employers,
-    unregistered degrees, or fabricated projects.
-    Parses line-by-line to avoid multi-line bleed.
+    Validates ResumeData fields against the ground-truth profile.
+    Fails if:
+    - any experience.company does not match profile experience item
+    - any education.institution does not match profile education item
+    - any project.name does not match profile project item
+    - any certification does not match profile certification
+    - any link url is not in profile links or profile project repo_url/live_url
+    - email or phone differs from profile
+    - any skill is not in profile.skills or profile project tech_stack
+    """
+    violations: List[str] = []
+
+    # 1. Experience company
+    profile_companies = {
+        _normalize_ws(exp.get("company", ""))
+        for exp in (profile.get("experience") or [])
+        if exp.get("company")
+    }
+    for exp in resume.experience:
+        c_norm = _normalize_ws(exp.company)
+        if c_norm and c_norm not in profile_companies:
+            violations.append(f"Unverified employer claimed: '{exp.company}' (not in profile experience).")
+
+    # 2. Education institution
+    profile_institutions = {
+        _normalize_ws(edu.get("institution", ""))
+        for edu in (profile.get("education") or [])
+        if edu.get("institution")
+    }
+    for edu in resume.education:
+        i_norm = _normalize_ws(edu.institution)
+        if i_norm and i_norm not in profile_institutions:
+            violations.append(f"Unverified institution claimed: '{edu.institution}' (not in profile education).")
+
+    # 3. Project name
+    profile_projects = {
+        _normalize_ws(p.get("name") or p.get("title") or "")
+        for p in (profile.get("projects") or [])
+        if (p.get("name") or p.get("title"))
+    }
+    for proj in resume.projects:
+        p_norm = _normalize_ws(proj.name)
+        if p_norm and p_norm not in profile_projects:
+            violations.append(f"Unverified project claimed: '{proj.name}' (not in profile projects).")
+
+    # 4. Certifications
+    profile_certs = set()
+    for c in profile.get("certifications") or []:
+        if isinstance(c, str):
+            profile_certs.add(_normalize_ws(c))
+        elif isinstance(c, dict) and c.get("name"):
+            profile_certs.add(_normalize_ws(c["name"]))
+    for cert in resume.certifications:
+        c_norm = _normalize_ws(cert)
+        if c_norm and c_norm not in profile_certs:
+            violations.append(f"Unverified certification claimed: '{cert}' (not in profile certifications).")
+
+    # 5. Link URLs
+    allowed_urls = set()
+    for k in ("github_url", "linkedin_url", "website"):
+        val = profile.get(k)
+        if val:
+            allowed_urls.add(_normalize_url(val))
+    for l in profile.get("links") or []:
+        if isinstance(l, dict) and l.get("url"):
+            allowed_urls.add(_normalize_url(l["url"]))
+        elif isinstance(l, str):
+            allowed_urls.add(_normalize_url(l))
+    for p in profile.get("projects") or []:
+        for url_field in ("repo_url", "live_url", "url"):
+            if p.get(url_field):
+                allowed_urls.add(_normalize_url(p[url_field]))
+    for link in resume.basics.links:
+        if link.url:
+            norm_link = _normalize_url(link.url)
+            if norm_link not in allowed_urls:
+                violations.append(f"Unverified link URL claimed: '{link.url}' (not in profile links or projects).")
+
+    # 6. Email and Phone
+    profile_email = (profile.get("email") or "").strip().lower()
+    resume_email = resume.basics.email.strip().lower()
+    if profile_email and resume_email != profile_email:
+        violations.append(f"Email '{resume.basics.email}' differs from profile email '{profile.get('email')}'.")
+
+    profile_phone = re.sub(r'[\s\-\(\)\.]', '', profile.get("phone") or "")
+    resume_phone = re.sub(r'[\s\-\(\)\.]', '', resume.basics.phone or "")
+    if profile_phone and resume_phone != profile_phone:
+        violations.append(f"Phone '{resume.basics.phone}' differs from profile phone '{profile.get('phone')}'.")
+
+    # 7. Skills
+    allowed_skills = {
+        _normalize_ws(s)
+        for s in (profile.get("skills") or [])
+        if s
+    }
+    for p in profile.get("projects") or []:
+        techs = p.get("tech_stack") or p.get("tech") or []
+        if isinstance(techs, str):
+            techs = [t.strip() for t in techs.split(",") if t.strip()]
+        for t in techs:
+            if t:
+                allowed_skills.add(_normalize_ws(t))
+    for group in resume.skills:
+        for item in group.items:
+            i_norm = _normalize_ws(item)
+            if i_norm and i_norm not in allowed_skills:
+                violations.append(f"Unverified skill claimed: '{item}' (not in profile skills or project tech).")
+
+    return (len(violations) == 0, violations)
+
+
+def validate_no_fabrication(generated_input: Any, profile: Dict) -> Tuple[bool, List[str]]:
+    """
+    Validates that the generated resume does not claim unearned employers,
+    unregistered degrees, fabricated projects, or unauthorized skills.
+    Accepts either ResumeData (structured) or str (text/markdown).
     Returns (is_valid, list_of_violations).
     """
+    from app.schemas.resume_schema import ResumeData
+    if isinstance(generated_input, ResumeData):
+        return validate_resume_data(generated_input, profile)
+
+    generated_text = str(generated_input or "")
     gt = extract_ground_truth_entities(profile)
     violations = []
 
@@ -293,17 +423,18 @@ def compute_ats_score(
         "html", "css", "tailwind", "go", "golang", "c++", "java", "kafka", "pandas", "pytorch",
     ]
     for kw in TECH_VOCAB:
-        if re.search(r'\b' + re.escape(kw) + r'\b', job_description, re.IGNORECASE):
+        pattern = r'(?<![a-zA-Z0-9_])' + re.escape(kw) + r'(?![a-zA-Z0-9_])'
+        if re.search(pattern, job_description, re.IGNORECASE):
             target_keywords.add(kw.title() if len(kw) > 3 else kw.upper())
 
     if not target_keywords:
         target_keywords = set((candidate_skills or [])[:8]) or {"Software Engineering"}
 
-    # Check match in resume using word-boundary matching
+    # Check match in resume using boundary-aware matching
     matched = []
     missing = []
     for kw in sorted(target_keywords):
-        pattern = r'\b' + re.escape(kw.lower()) + r'\b'
+        pattern = r'(?<![a-zA-Z0-9_])' + re.escape(kw.lower()) + r'(?![a-zA-Z0-9_])'
         if re.search(pattern, resume_text, re.IGNORECASE):
             matched.append(kw)
         else:

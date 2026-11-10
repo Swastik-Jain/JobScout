@@ -9,6 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 import type { GithubRepo, ExperienceEntry, ProjectEntry, EducationEntry } from '../types';
 import { useTerminal } from '../contexts/TerminalContext';
 import { resolveApiUrl } from '../lib/api';
+import { ProfileForm } from '../components/ProfileForm';
+import { ProfileStrengthMeter } from '../components/ProfileStrengthMeter';
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 const InputRow: React.FC<{
@@ -89,6 +91,7 @@ export const Profile: React.FC = () => {
   // Editing flags
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showFullEditor, setShowFullEditor] = useState(false);
 
   // ── Local drafts (one per section) ──
   const [draftInfo, setDraftInfo] = useState({
@@ -209,8 +212,17 @@ export const Profile: React.FC = () => {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ repo_links: links }),
+        body: JSON.stringify({ repo_links: links, email: user?.email || '' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errDetail = Array.isArray(errorData.detail)
+          ? errorData.detail.map((d: any) => d.msg).join(', ')
+          : errorData.detail || 'Server error';
+        pushLog(`[RepoAgent] ➔ Error (${response.status}): ${errDetail}`);
+        return;
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -273,10 +285,10 @@ export const Profile: React.FC = () => {
         })));
 
         const verifiedCount = newRepos.filter((r: any) => r.verified).length;
-        pushLog(`[RepoAgent] ➔ ✅ Intelligence sync complete. ${verifiedCount}/${newRepos.length} repo(s) verified via GitHub API.`);
+        pushLog(`[RepoAgent] Intelligence sync complete. ${verifiedCount}/${newRepos.length} repo(s) verified via GitHub API.`);
       }
     } catch {
-      pushLog('[RepoAgent] ➔ ❌ Sync failed. Check backend connection.');
+      pushLog('[RepoAgent] Sync failed. Check backend connection.');
     } finally {
       setRepoAnalyzing(false);
     }
@@ -296,10 +308,37 @@ export const Profile: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-10">
-      <div className="mb-2">
-        <h2 className="text-4xl font-bold tracking-tight text-white">Profile</h2>
-        <p className="text-zinc-400 text-base mt-1">Manage your profile — used by the AI to find and apply for jobs.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white">Profile</h2>
+          <p className="text-zinc-400 text-sm mt-1">Manage your profile — strictly used to discover and tailor job opportunities.</p>
+        </div>
+        <button
+          onClick={() => setShowFullEditor(!showFullEditor)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition cursor-pointer self-start sm:self-auto"
+        >
+          <Pencil size={13} /> {showFullEditor ? 'View Profile Summary' : 'Edit Full Profile'}
+        </button>
       </div>
+
+      {/* Profile Strength Meter */}
+      <ProfileStrengthMeter profile={user || {}} isFresher={!user?.experience?.length} />
+
+      {showFullEditor ? (
+        <div className="glass p-6 rounded-2xl border border-zinc-800">
+          <ProfileForm
+            initialData={user || {}}
+            mode="edit"
+            submitLabel="Save Profile Changes"
+            onSave={async (data) => {
+              await updateProfile(data);
+              setShowFullEditor(false);
+            }}
+            onCancel={() => setShowFullEditor(false)}
+          />
+        </div>
+      ) : (
+        <>
 
       {/* Onboarding hint */}
       {isNewUser && (
@@ -309,7 +348,7 @@ export const Profile: React.FC = () => {
           className="flex items-center gap-3 bg-blue-950/40 border border-blue-700/30 rounded-xl px-5 py-3 text-blue-300 text-sm"
         >
           <Zap size={16} className="shrink-0 text-blue-400" />
-          <span>👋 Complete your profile once — it's permanently saved and auto-loaded every time you log in.</span>
+          <span>Complete your profile once — it's permanently saved and auto-loaded every time you log in.</span>
         </motion.div>
       )}
 
@@ -343,7 +382,7 @@ export const Profile: React.FC = () => {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-xl font-bold text-white">{user.name || '—'}</h3>
+                <h3 className="text-xl font-bold text-white capitalize">{user.name || '—'}</h3>
                 {user.target_role && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
                     Target: {user.target_role}
@@ -735,7 +774,8 @@ export const Profile: React.FC = () => {
           </div>
         )}
       </div>
-
+        </>
+      )}
 
     </div>
   );

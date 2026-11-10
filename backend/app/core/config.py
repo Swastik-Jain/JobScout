@@ -7,12 +7,16 @@ Import `settings` instead of calling os.getenv() directly.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 import secrets
 import warnings
 
-load_dotenv()
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+ROOT_DIR = BACKEND_DIR.parent
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env")
 
 
 class Settings:
@@ -56,10 +60,14 @@ class Settings:
     # ── Database ──────────────────────────────────────────────────
     @property
     def database_url(self) -> str:
-        url = os.getenv("DATABASE_URL", "sqlite:///./jobscout.db").strip()
+        url = os.getenv("DATABASE_URL", "sqlite:///./job_bot.db").strip()
         # Render / Heroku provides 'postgres://' which SQLAlchemy 1.4+ rejects; rewrite to 'postgresql://'
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+        if url.startswith("sqlite:///./") or (url.startswith("sqlite:///") and not url.startswith("sqlite:////")):
+            rel_file = url.replace("sqlite:///./", "").replace("sqlite:///", "")
+            abs_db = (BACKEND_DIR / rel_file).resolve()
+            return f"sqlite:///{abs_db}"
         return url
 
     # ── CORS ──────────────────────────────────────────────────────

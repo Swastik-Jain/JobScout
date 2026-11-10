@@ -8,6 +8,7 @@ Uses google.genai (new SDK) with a 3-model fallback chain and exponential backof
 transient 503/500 errors.
 """
 
+import re
 import json
 import time
 import random
@@ -24,6 +25,12 @@ from app.services.resume_validator import (
     compute_ats_score,
 )
 
+from app.schemas.resume_schema import (
+    ResumeData,
+    render_plain_text,
+    build_deterministic_resume_data,
+)
+
 # Ordered fallback chain from centralized settings
 MODEL_FALLBACK_CHAIN = settings.gemini_model_chain
 
@@ -32,96 +39,61 @@ RETRYABLE_STATUS_CODES = ("503", "500", "UNAVAILABLE", "INTERNAL")
 MAX_RETRIES = 3
 BASE_DELAY = 2.0  # seconds
 
+BANNED_PHRASES = [
+    "demonstrating expertise",
+    "showcasing",
+    "robust",
+    "cutting-edge",
+    "state-of-the-art",
+    "seamless",
+    "leveraging",
+    "passionate",
+    "results-driven",
+    "hands-on experience",
+    "spearheaded",
+    "utilized",
+]
+
+
+def find_banned_phrases(resume: ResumeData) -> List[str]:
+    """Find banned phrases in summary and all bullets (case-insensitive)."""
+    hits: List[str] = []
+    texts: List[str] = []
+    if resume.summary:
+        texts.append(resume.summary)
+    for exp in resume.experience:
+        texts.extend(exp.bullets)
+    for proj in resume.projects:
+        texts.extend(proj.bullets)
+
+    for t in texts:
+        for phrase in BANNED_PHRASES:
+            pattern = r'(?<![a-zA-Z0-9])' + re.escape(phrase) + r'(?![a-zA-Z0-9])'
+            if re.search(pattern, t, re.IGNORECASE):
+                hits.append(f"Contains banned phrase '{phrase}'.")
+    return hits
+
 
 class ResumeAgentOutput(BaseModel):
+    resume_data: Optional[ResumeData] = None
     resume_md: str = Field(description="The ATS-optimized resume in plain text format")
     ats_score: int = Field(description="Estimated ATS Score (0-100)")
     improvements: List[str] = Field(description="Three specific actionable improvements")
 
 
-# ─── Strict Resume Format Template ───────────────────────────────────────────
-RESUME_FORMAT = """
-[FULL NAME]
-[Email] | [Phone] | [LinkedIn URL] | [GitHub URL]
-[City, Country]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROFESSIONAL SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[2-3 sentence compelling summary tailored to the job. Include years of experience,
-key skills, and value proposition. Embed 2-3 keywords from the job description.]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TECHNICAL SKILLS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Languages     : [e.g. Python, JavaScript, TypeScript]
-Frameworks    : [e.g. FastAPI, React, Node.js]
-Databases     : [e.g. PostgreSQL, MongoDB, Redis]
-Tools & DevOps: [e.g. Docker, Git, AWS, CI/CD]
-Other         : [e.g. Machine Learning, REST APIs, Agile]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WORK EXPERIENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Job Title] | [Company Name]                           [Start Date] – [End Date]
-• [Achievement-focused bullet. Start with strong action verb. Quantify impact.]
-• [e.g. "Reduced API latency by 40% by implementing Redis caching layer"]
-• [e.g. "Led a cross-functional team of 5 engineers to deliver feature 2 weeks early"]
-
-[Repeat for each experience entry]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROJECTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Project Name] | [Tech Stack]                          [GitHub/Live URL if available]
-• [What it does and the impact/scale]
-• [Key technical challenge solved]
-
-[Repeat for each project]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EDUCATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Degree] in [Field]                                    [Year]
-[Institution Name], [Location]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CERTIFICATIONS & ACHIEVEMENTS (if applicable)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• [Certification Name] – [Issuer] ([Year])
-""".strip()
-
-
 SYSTEM_INSTRUCTION = """You are an expert Executive Resume Writer and ATS Optimization Specialist.
+Your task is to craft an ATS-optimized, structured resume for the candidate against the target job description.
 
-Your task:
-1. Take the user's profile data and the target job description
-2. Generate a COMPLETE, professional resume using EXACTLY the format template provided
-3. Fill EVERY section with real content from the profile
-4. Tailor keywords and phrases to match the job description for maximum ATS score
-5. Use strong action verbs (Built, Developed, Designed, Led, Optimized, Implemented, Delivered)
-6. Quantify achievements wherever possible (%, users, time saved, scale)
-7. Score the resume honestly against the job description
-
-CRITICAL RULES:
-- NO FABRICATION (STRICT): NEVER invent, assume, or hallucinate employers, companies, universities, degrees, or projects not in the user profile. You may only reword and emphasize action verbs and keywords under existing verified entries.
-- Output STRICT JSON with keys: resume_md, ats_score, improvements
-- resume_md must be the FULL resume text, properly formatted — never truncate it
-- If user has no experience, create a strong student/fresher format with projects highlighted
-- If a section has no data, leave it empty or omitted — never invent data
-- Never return placeholder bracket text like [Full Name] — always fill with real data
-- ats_score must be an integer 0-100
-
-Return ONLY this JSON structure:
-{
-  "resume_md": "FULL RESUME TEXT HERE...",
-  "ats_score": 87,
-  "improvements": [
-    "Add quantified metrics to the first bullet point in Work Experience",
-    "Include more cloud/DevOps keywords from the job description",
-    "Add a Certifications section to boost keyword density"
-  ]
-}"""
+RULES:
+1. Use ONLY facts in the profile. Never add companies, degrees, certificates, links, tools, or numbers that are not in the profile.
+2. Choose and order content for the target job. Max 3 projects, max 3 bullets per project (4 only if the project is the most relevant), max 14 bullets in total.
+3. Every bullet: 12–25 words, starts with a past-tense action verb, pattern = action + what + how + result.
+4. Use a number only if it appears in the profile. If a bullet would be clearly stronger with a number the profile lacks, end that bullet with the literal text " [add metric]". Use this on at most 2 bullets in the whole resume.
+5. Skills: 4–5 groups (e.g. Languages, ML/AI, Backend & Web, Tools & DevOps), only skills present in profile.skills or in a listed project's tech stack.
+6. Banned words/phrases: "demonstrating expertise", "showcasing", "robust", "cutting-edge", "state-of-the-art", "seamless", "leveraging", "passionate", "results-driven", "hands-on experience", "spearheaded", "utilized".
+7. Omit `summary` (set null) unless the profile has no projects and no experience.
+8. basics.email/phone/name/location/links come verbatim from the profile.
+"""
 
 
 def _make_client() -> Optional[genai.Client]:
@@ -195,8 +167,8 @@ class ResumeAgent:
 
         return "\n".join(lines)
 
-    async def _call_model_async(self, model_name: str, prompt: str) -> ResumeAgentOutput:
-        """Call Gemini via new google.genai async client without blocking event loop."""
+    async def _call_model_async(self, model_name: str, prompt: str) -> ResumeData:
+        """Call Gemini via new google.genai async client with response_schema=ResumeData and 1 retry on validation error."""
         last_error = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
@@ -207,23 +179,38 @@ class ResumeAgent:
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
                         response_mime_type="application/json",
-                        temperature=0.4,
+                        response_schema=ResumeData,
+                        temperature=0.2,
                     ),
                 )
-                result = json.loads(response.text)
-                return ResumeAgentOutput(
-                    resume_md=result.get("resume_md", ""),
-                    ats_score=int(result.get("ats_score", 0)),
-                    improvements=result.get("improvements", []),
-                )
+                try:
+                    return ResumeData.model_validate_json(response.text)
+                except Exception as val_err:
+                    logger.warning(f"[ResumeAgent] Validation error on {model_name}: {val_err}. Retrying once with error feedback...")
+                    retry_prompt = (
+                        f"{prompt}\n\n"
+                        f"IMPORTANT: The previous output failed Pydantic validation with error:\n{val_err}\n"
+                        f"Please output strictly valid JSON satisfying the schema rules."
+                    )
+                    retry_resp = await self.client.aio.models.generate_content(
+                        model=model_name,
+                        contents=retry_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            response_mime_type="application/json",
+                            response_schema=ResumeData,
+                            temperature=0.2,
+                        ),
+                    )
+                    return ResumeData.model_validate_json(retry_resp.text)
             except Exception as e:
                 last_error = e
                 err_str = str(e)
                 is_retryable = any(code in err_str for code in RETRYABLE_STATUS_CODES)
                 if is_retryable and attempt < MAX_RETRIES:
                     delay = BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
-                    logger.warning(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), ")
-                          f"retrying in {delay:.1f}s... Error: {err_str[:120]}")
+                    logger.warning(f"[ResumeAgent] ➔ [{model_name}] transient error (attempt {attempt}), "
+                                   f"retrying in {delay:.1f}s... Error: {err_str[:120]}")
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -237,75 +224,88 @@ class ResumeAgent:
         job_description: str,
         critic_feedback: Optional[str] = None,
     ) -> ResumeAgentOutput:
-        """Asynchronous, non-blocking resume generation."""
-        profile_text = self._build_profile_text(user_profile)
-        prompt = (
-            f"RESUME FORMAT TEMPLATE:\n{RESUME_FORMAT}\n\n"
-            f"━━━━━━━━━━━━━━━\nUSER PROFILE:\n{profile_text}\n\n"
-            f"━━━━━━━━━━━━━━━\nTARGET JOB DESCRIPTION:\n{job_description}\n"
-        )
-        if critic_feedback:
-            prompt += (
-                f"\n━━━━━━━━━━━━━━━\n"
-                f"CRITIC FEEDBACK — MUST ADDRESS IN THIS VERSION:\n{critic_feedback}\n"
-            )
-        base_resume = render_deterministic_base_resume(user_profile)
+        """Asynchronous, non-blocking structured resume generation."""
+        base_data = build_deterministic_resume_data(user_profile)
+        base_resume_md = render_plain_text(base_data)
         user_skills = user_profile.get("skills") or []
 
         if not self.client:
             logger.info("[ResumeAgent] ➔ Gemini API key not configured — using deterministic baseline resume.")
-            fallback_ats, _ = compute_ats_score(base_resume, job_description, user_skills)
+            fallback_ats, _ = compute_ats_score(base_resume_md, job_description, user_skills)
             return ResumeAgentOutput(
-                resume_md=base_resume,
+                resume_data=base_data,
+                resume_md=base_resume_md,
                 ats_score=fallback_ats,
                 improvements=["Gemini API key not configured — served verified deterministic baseline resume."],
+            )
+
+        profile_text = self._build_profile_text(user_profile)
+        prompt = (
+            f"USER PROFILE:\n{profile_text}\n\n"
+            f"TARGET JOB DESCRIPTION:\n{job_description}\n"
+        )
+        if critic_feedback:
+            prompt += (
+                f"\nCRITIC FEEDBACK — MUST ADDRESS IN THIS VERSION:\n{critic_feedback}\n"
             )
 
         chain = [self.model_name] + [m for m in MODEL_FALLBACK_CHAIN if m != self.model_name]
         for model in chain:
             try:
                 logger.info(f"[ResumeAgent] ➔ Generating resume with {model}...")
-                out = await self._call_model_async(model, prompt)
-                
+                resume_data = await self._call_model_async(model, prompt)
+
                 # Enforce no fabrication on the generated resume
-                is_valid, errors = validate_no_fabrication(out.resume_md, user_profile)
+                is_valid, errors = validate_no_fabrication(resume_data, user_profile)
                 if not is_valid:
-                    logger.warning(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile."))
-                    out.resume_md = base_resume
-                    out.improvements.append("Reverted unverified modifications to preserve strict candidate accuracy.")
+                    logger.warning(f"[ResumeAgent] ➔ Anti-fabrication flagged: {errors}. Preserving verified profile.")
+                    resume_data = base_data
+                    improvements = ["Reverted unverified modifications to preserve strict candidate accuracy."]
+                else:
+                    improvements = ["Tailored experience bullets and technical skills for target role."]
 
-                # Guarantee realistic ATS score
-                if out.ats_score <= 0:
-                    ats_score, _ = compute_ats_score(out.resume_md, job_description, user_skills)
-                    out.ats_score = ats_score
+                # Find banned phrases and append to improvements
+                banned_hits = find_banned_phrases(resume_data)
+                improvements.extend(banned_hits)
 
-                return out
+                rendered_md = render_plain_text(resume_data)
+                ats_score, ats_details = compute_ats_score(rendered_md, job_description, user_skills)
+
+                return ResumeAgentOutput(
+                    resume_data=resume_data,
+                    resume_md=rendered_md,
+                    ats_score=ats_score,
+                    improvements=improvements,
+                )
             except Exception as e:
                 err = str(e)
                 is_quota = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
                 is_transient = any(code in err for code in RETRYABLE_STATUS_CODES)
                 is_model_unavailable = "404" in err or "NOT_FOUND" in err
                 if is_quota:
-                    logger.warning(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model..."))
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Quota exhausted — trying next model...")
                 elif is_transient:
-                    logger.warning(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model..."))
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Service unavailable after retries — trying next model...")
                 elif is_model_unavailable:
-                    logger.warning(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model..."))
+                    logger.warning(f"[ResumeAgent] ➔ [{model}] Model not available in this region/version — trying next model...")
                 else:
                     logger.error(f"[ResumeAgent] ➔ [{model}] Non-retryable error: {err}")
-                    ats_score, _ = compute_ats_score(base_resume, job_description, user_skills)
+                    ats_score, _ = compute_ats_score(base_resume_md, job_description, user_skills)
                     return ResumeAgentOutput(
-                        resume_md=base_resume,
+                        resume_data=base_data,
+                        resume_md=base_resume_md,
                         ats_score=ats_score,
                         improvements=[f"LLM error: {err} — served verified baseline resume."],
                     )
 
-        fallback_ats, _ = compute_ats_score(base_resume, job_description, user_skills)
+        fallback_ats, _ = compute_ats_score(base_resume_md, job_description, user_skills)
         return ResumeAgentOutput(
-            resume_md=base_resume,
+            resume_data=base_data,
+            resume_md=base_resume_md,
             ats_score=fallback_ats,
             improvements=["AI generation quota reached — served verified deterministic baseline resume."],
         )
+
 
     def generate_resume(
         self,

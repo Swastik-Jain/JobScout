@@ -102,6 +102,7 @@ class ResumeVersion(SQLModel, table=True):
     application_id: int = Field(foreign_key="application.id", index=True)
     version_number: int = Field(default=1)
     resume_md: str
+    resume_json: Optional[Dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
     cover_note: Optional[str] = None
     qa_drafts: List[Dict] = Field(default_factory=list, sa_column=Column(JSON))
     ats_score: float = Field(default=0.0)

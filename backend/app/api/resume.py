@@ -6,8 +6,8 @@ Resume & Apply routes
   WS    /logs
 """
 from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -16,9 +16,99 @@ from app.core.db import get_session
 from app.models.models import UserProfile, Job, JobMatch
 from app.api.deps import get_current_user, profile_to_dict
 from app.agents.orchestrator import orchestrator
+from app.services.resume_parser import (
+    extract_text,
+    parse_resume_text,
+    compute_confidence_and_attention,
+    store_uploaded_resume,
+    get_empty_parsed_data,
+    MAX_FILE_SIZE,
+    ALLOWED_EXTENSIONS,
+)
 
 logger = logging.getLogger("jobscout.resume")
 router = APIRouter()
+
+
+@router.post("/resume/parse")
+async def parse_resume_endpoint(
+    file: UploadFile = File(...),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Accepts a PDF or DOCX resume, validates size and type, extracts text,
+    parses structured profile data with per-field confidence, and stores
+    the original file without modifying the user's database profile.
+    """
+    filename = file.filename or "resume.pdf"
+    ext = Path(filename).suffix.lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Please upload a .pdf or .docx file.",
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File exceeds 5MB size limit ({len(file_bytes) / 1024 / 1024:.1f}MB).",
+        )
+
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # 1. Store the original file as the source of truth
+    file_meta = store_uploaded_resume(file_bytes, filename, current_user.id or 0)
+
+    # 2. Extract text from file
+    try:
+        raw_text = extract_text(file_bytes, filename)
+    except Exception as e:
+        logger.warning(f"[ResumeAPI] Extraction error for {filename}: {e}")
+        return {
+            "success": False,
+            "error": "The document could not be read or is corrupted. Please fill in your profile manually.",
+            "parsed_data": get_empty_parsed_data(),
+            "confidence": {"name": 0.0, "contact": 0.0, "skills": 0.0, "education": 0.0, "experience": 0.0, "projects": 0.0},
+            "attention_fields": ["name", "email", "skills", "education", "target_role", "preferred_location"],
+            "file_meta": file_meta,
+        }
+
+    # 3. Handle scanned PDF / image-only / unreadable text
+    if len(raw_text.strip()) < 50:
+        return {
+            "success": False,
+            "error": "This file appears to be an image scan or unreadable layout. We've set up the form below for quick manual entry.",
+            "parsed_data": get_empty_parsed_data(),
+            "confidence": {"name": 0.0, "contact": 0.0, "skills": 0.0, "education": 0.0, "experience": 0.0, "projects": 0.0},
+            "attention_fields": ["name", "email", "skills", "education", "target_role", "preferred_location"],
+            "file_meta": file_meta,
+        }
+
+    # 4. Parse with LLM / heuristic
+    try:
+        parsed_data = parse_resume_text(raw_text)
+        confidence, attention_fields = compute_confidence_and_attention(parsed_data, raw_text)
+        return {
+            "success": True,
+            "error": None,
+            "parsed_data": parsed_data,
+            "confidence": confidence,
+            "attention_fields": attention_fields,
+            "file_meta": file_meta,
+        }
+    except Exception as e:
+        logger.error(f"[ResumeAPI] Parsing exception for {filename}: {e}")
+        return {
+            "success": False,
+            "error": f"LLM parsing was interrupted: {str(e)}. You can review or manually complete your profile below.",
+            "parsed_data": get_empty_parsed_data(),
+            "confidence": {"name": 0.0, "contact": 0.0, "skills": 0.0, "education": 0.0, "experience": 0.0, "projects": 0.0},
+            "attention_fields": ["name", "email", "skills", "education", "target_role", "preferred_location"],
+            "file_meta": file_meta,
+        }
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────

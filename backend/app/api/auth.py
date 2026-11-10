@@ -5,7 +5,7 @@ Auth routes
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from typing import Optional
 
 from app.core.db import get_session
@@ -32,17 +32,20 @@ class LoginRequest(BaseModel):
 # ── Routes ────────────────────────────────────────────────────────────────────
 @router.post("/auth/register")
 def register(req: RegisterRequest, session: Session = Depends(get_session)):
+    clean_email = req.email.strip().lower()
     existing = session.exec(
-        select(UserProfile).where(UserProfile.email == req.email)
+        select(UserProfile).where(func.lower(UserProfile.email) == clean_email)
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered.")
 
+    cleaned_name = " ".join(p.capitalize() for p in req.name.strip().split()) if req.name else req.name
+    clean_pwd = req.password.strip()
     user = UserProfile(
-        name=req.name,
-        email=req.email,
-        phone=req.phone,
-        hashed_password=hash_password(req.password),
+        name=cleaned_name,
+        email=clean_email,
+        phone=req.phone.strip() if req.phone else None,
+        hashed_password=hash_password(clean_pwd),
     )
     session.add(user)
     session.commit()
@@ -54,10 +57,21 @@ def register(req: RegisterRequest, session: Session = Depends(get_session)):
 
 @router.post("/auth/login")
 def login(req: LoginRequest, session: Session = Depends(get_session)):
+    clean_email = req.email.strip().lower()
     user = session.exec(
-        select(UserProfile).where(UserProfile.email == req.email)
+        select(UserProfile).where(func.lower(UserProfile.email) == clean_email)
     ).first()
-    if not user or not verify_password(req.password, user.hashed_password):
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    # Match exact password or trimmed password to prevent trailing whitespace issues
+    pwd = req.password
+    pwd_valid = verify_password(pwd, user.hashed_password)
+    if not pwd_valid and pwd.strip() != pwd:
+        pwd_valid = verify_password(pwd.strip(), user.hashed_password)
+
+    if not pwd_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     token = create_access_token({"sub": user.email})

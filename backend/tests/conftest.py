@@ -107,3 +107,11 @@ def sample_job(session: Session) -> Job:
     session.commit()
     session.refresh(job)
     return job
+
+
+@pytest.fixture(autouse=True)
+def disable_external_network(monkeypatch):
+    """Ensures test suite runs with no network and no live Gemini API calls."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "google_api_key", "")
+

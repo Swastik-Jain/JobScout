@@ -5,12 +5,12 @@ Jobs routes
   POST  /jobs/sync       — trigger background ATS feed synchronization
   POST  /jobs/discover   — trigger offline ATS company source discovery via Serper
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlmodel import Session, select
 import logging
 
 from app.core.db import get_session
-from app.models.models import UserProfile, Job, JobScore, JobMatch, CompanySource
+from app.models.models import UserProfile, Job, JobScore
 from app.api.deps import get_current_user, profile_to_dict
 from app.tools.ats_adapters import sync_all_active_sources
 from app.agents.job_finder_agent import run_job_finder_agent, discover_new_ats_sources_offline

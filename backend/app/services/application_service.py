@@ -8,12 +8,10 @@ Application Service & State Machine
 """
 
 import io
-import re
 import json
-import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Optional, Set
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 from google import genai
@@ -33,7 +31,6 @@ from app.models.models import (
 )
 from app.services.resume_validator import (
     render_deterministic_base_resume,
-    validate_no_fabrication,
     compute_ats_score,
     judge_resume_with_llm,
 )
@@ -341,7 +338,7 @@ Return strict JSON:
 def export_resume_to_docx(resume_md: str, title: str = "Resume") -> io.BytesIO:
     """Converts Markdown resume into a clean Microsoft Word (.docx) document."""
     import docx
-    from docx.shared import Pt, Inches, RGBColor
+    from docx.shared import Pt, Inches
 
     doc = docx.Document()
 

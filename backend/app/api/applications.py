@@ -11,7 +11,7 @@ State-Machine Driven Human-in-the-Loop Application Lifecycle:
   GET    /applications/{id}/prepare/status— Check preparation status
   GET    /applications/{id}/export        — Download tailored materials as DOCX or Markdown
 """
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Response, Query, status
 from fastapi.security import HTTPAuthorizationCredentials
@@ -61,10 +61,6 @@ class UpdateApplicationRequest(BaseModel):
     last_contact_at: Optional[datetime] = None
     resume_md: Optional[str] = None
     cover_note: Optional[str] = None
-
-
-# Alias for backwards compatibility
-UpdateNotesRequest = UpdateApplicationRequest
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────

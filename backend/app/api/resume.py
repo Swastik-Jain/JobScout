@@ -7,11 +7,11 @@ from typing import Optional
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 import logging
 from app.core.db import get_session
-from app.models.models import UserProfile, Job, JobMatch
+from app.models.models import UserProfile, Job
 from app.api.deps import get_current_user, profile_to_dict
 from app.agents.orchestrator import orchestrator
 from app.services.resume_parser import (
@@ -129,7 +129,7 @@ async def generate_resume(
         job_id = req.job_id
         critic_comment = req.critic_comment
 
-    job = session.get(Job, job_id) or session.get(JobMatch, job_id)
+    job = session.get(Job, job_id)
 
     job_target = (
         job.dict()

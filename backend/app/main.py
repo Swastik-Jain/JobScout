@@ -10,12 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.db import init_db
 
-from app.api.health import router as health_router
-from app.api.auth import router as auth_router
-from app.api.profile import router as profile_router
-from app.api.jobs import router as jobs_router
-from app.api.resume import router as resume_router
-
 app = FastAPI(title="Autonomous Job Application System API")
 
 app.add_middleware(
@@ -56,7 +50,6 @@ async def on_startup():
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-import traceback
 
 
 @app.exception_handler(Exception)

@@ -119,29 +119,3 @@ class ApplicationTimeline(SQLModel, table=True):
     to_status: str
     note: Optional[str] = None
     created_at: datetime = Field(default_factory=utc_now)
-
-
-# Legacy models kept for backwards-compatibility during migration
-class JobMatch(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    title: str
-    company: str
-    description: Optional[str] = None
-    platform: str
-    url: Optional[str] = None
-    location: Optional[str] = None
-    salary_range: Optional[str] = None
-    match_score: float
-    justification: Optional[str] = None
-    key_requirements: List[str] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=utc_now)
-
-
-class ApplicationHistory(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    job_id: int = Field(foreign_key="jobmatch.id")
-    status: str = "Pending"
-    resume_md: str
-    ats_score: float
-    platform: str
-    applied_at: datetime = Field(default_factory=utc_now)

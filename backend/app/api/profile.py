@@ -10,14 +10,14 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.core.db import get_session, engine
-from app.models.models import UserProfile, JobMatch
+from app.core.db import get_session
+from app.models.models import UserProfile
 from app.api.deps import profile_to_dict, get_current_user
 
 router = APIRouter()
@@ -99,8 +99,6 @@ def update_my_profile(
     session.add(user)
     session.commit()
     session.refresh(user)
-    return profile_to_dict(user)
-
     return profile_to_dict(user)
 
 

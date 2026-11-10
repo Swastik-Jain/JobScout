@@ -9,8 +9,6 @@ transient 503/500 errors.
 """
 
 import re
-import json
-import time
 import random
 import asyncio
 from pydantic import BaseModel, Field
@@ -20,7 +18,6 @@ from google.genai import types
 
 from app.core.config import settings
 from app.services.resume_validator import (
-    render_deterministic_base_resume,
     validate_no_fabrication,
     compute_ats_score,
 )
@@ -305,68 +302,3 @@ class ResumeAgent:
             ats_score=fallback_ats,
             improvements=["AI generation quota reached — served verified deterministic baseline resume."],
         )
-
-
-    def generate_resume(
-        self,
-        user_profile: Dict,
-        job_description: str,
-        critic_feedback: Optional[str] = None,
-    ) -> ResumeAgentOutput:
-        """Synchronous compatibility wrapper using thread pool to avoid loop blocking."""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    return pool.submit(
-                        asyncio.run,
-                        self.a_generate_resume(user_profile, job_description, critic_feedback)
-                    ).result()
-            return loop.run_until_complete(
-                self.a_generate_resume(user_profile, job_description, critic_feedback)
-            )
-        except Exception:
-            return asyncio.run(
-                self.a_generate_resume(user_profile, job_description, critic_feedback)
-            )
-
-    def critic_agent(self, resume_output: ResumeAgentOutput) -> Dict:
-        score = resume_output.ats_score
-        if score < 85:
-            improvements_text = "\n- ".join(resume_output.improvements)
-            return {
-                "status": "reoptimize",
-                "feedback": (
-                    f"Current ATS Score is {score}/100 (below 85 threshold).\n"
-                    f"Specific improvements required:\n- {improvements_text}"
-                ),
-            }
-        return {"status": "approved", "feedback": f"Resume approved. ATS Score: {score}/100."}
-
-    def run(
-        self,
-        user_profile: Dict,
-        job_description: str,
-        max_iterations: int = 2,
-    ) -> ResumeAgentOutput:
-        """Generate → Critique → Re-generate loop (max 2 iterations to save quota)."""
-        critic_feedback = None
-        result = None
-
-        for i in range(max_iterations):
-            logger.info(f"[ResumeAgent] ➔ Iteration {i + 1}/{max_iterations}")
-            result = self.generate_resume(user_profile, job_description, critic_feedback)
-
-            if result.ats_score == 0:
-                break  # quota exhausted, stop looping
-
-            review = self.critic_agent(result)
-            logger.info(f"[ResumeAgent] ➔ Critic: {review['status']} (score={result.ats_score})")
-
-            if review["status"] == "approved":
-                break
-
-            critic_feedback = review["feedback"]
-
-        return result

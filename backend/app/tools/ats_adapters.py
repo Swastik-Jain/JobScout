@@ -13,7 +13,6 @@ Tier 1: Direct public ATS feeds (Greenhouse, Lever, Ashby)
 import re
 import asyncio
 import logging
-from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 import httpx
 from sqlmodel import Session, select
@@ -431,7 +430,6 @@ def prefilter_ingested_jobs(
         title = j.title.lower()
         loc = (j.location or "").lower()
         desc = (j.description or "").lower()
-        full_text = f"{title} {loc} {desc}"
 
         # ── HARD FILTER 1: SENIORITY ──────────────────────────────────────────
         if is_entry_level:

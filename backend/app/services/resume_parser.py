@@ -23,12 +23,6 @@ logger = logging.getLogger("jobscout.resume_parser")
 
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
-ALLOWED_MIME_TYPES = {
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/msword",
-    "application/octet-stream",
-}
 
 # ─── Pydantic Schemas ──────────────────────────────────────────────────────────
 

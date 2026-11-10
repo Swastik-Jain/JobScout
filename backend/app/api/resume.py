@@ -1,13 +1,11 @@
 """
-Resume & Apply routes
+Resume routes
+  POST  /resume/parse
   POST  /generate-resume
-  POST  /apply
-  GET   /applications
-  WS    /logs
 """
 from typing import Optional
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -169,15 +167,3 @@ async def generate_resume(
         "logs": result["logs"],
         "improvements": result.get("improvements", []),
     }
-
-
-
-@router.websocket("/logs")
-async def websocket_logs(websocket: WebSocket):
-    from app.utils.log_generator import generate_agent_logs
-    await websocket.accept()
-    try:
-        async for msg in generate_agent_logs():
-            await websocket.send_json({"log": msg})
-    except WebSocketDisconnect:
-        logger.info("Client disconnected from /logs websocket")

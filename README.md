@@ -76,8 +76,8 @@ JobScout/
 └── frontend/
     └── web/                 # React 19 + TypeScript + Vite + TailwindCSS
         ├── src/
-        │   ├── components/  # OptimizationGauge, ReviewModal, Navbar, Sidebar
-        │   ├── contexts/    # AuthContext, TerminalContext (WebSocket logs)
+        │   ├── components/  # ReviewModal, ResumeStudio, ProfileForm, Navbar
+        │   ├── contexts/    # AuthContext, TerminalContext (activity drawer log state)
         │   ├── lib/         # api client, fraudHeuristics (extracted rules & badges)
         │   └── pages/       # MissionControl, Overview, Profile, Login, Register
         └── README.md        # Frontend architecture & component guide

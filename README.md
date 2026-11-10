@@ -23,7 +23,7 @@
 ### 1. Direct ATS Ingestion (Zero-Scrape Waste)
 - Ingests real, live public postings directly from corporate ATS boards (**Greenhouse**, **Lever**, **Ashby**).
 - **Lightweight sync**: Greenhouse listings are fetched without heavy description payloads; descriptions are enriched only for top shortlisted candidates.
-- **Closed job detection**: Automatic deactivation (`is_active = False`) when a job vanishes from an ATS board feed or HTTP 404/410 / closed vacancy text indicators are encountered.
+- **Closed job detection**: Automatic deactivation (`is_active = False`) when a job vanishes from an ATS board feed on the next sync. Sources that fail 3 consecutive syncs are deactivated.
 - **Offline discovery**: Scheduled background discovery using Serper to discover and validate new ATS company slugs (`validate_and_register_slug`) with strict regex and verification tests, preventing per-search credit burning.
 
 ### 2. Transparent ATS Scoring (60/40 Formula)
@@ -67,9 +67,9 @@ JobScout/
 │   │   ├── core/            # config, db (SQLite/Postgres), security, logging_config
 │   │   ├── models/          # SQLModel schemas (User, Job, IngestedJob, Application, etc.)
 │   │   ├── services/        # application_service (state machine), resume_validator
-│   │   ├── tools/           # ats_adapters (Greenhouse/Lever/Ashby), job_scraper
+│   │   ├── tools/           # ats_adapters (Greenhouse/Lever/Ashby feeds + prefilter)
 │   │   └── main.py          # FastAPI application entrypoint
-│   ├── tests/               # Pytest suite (auth, ownership, adapters, closed-jobs)
+│   ├── tests/               # Pytest suite (auth, ownership, adapters, feed sync, resume parser/schema)
 │   ├── alembic/             # Database migrations
 │   ├── requirements.txt     # Pinned Python dependencies
 │   └── pytest.ini           # Pytest configuration
@@ -90,7 +90,7 @@ JobScout/
 Both backend and frontend are tested in continuous integration on every push and pull request via GitHub Actions:
 
 ```bash
-# 1. Run Backend Pytest Suite (Auth, Ownership, Adapters, Closed-Job Detection)
+# 1. Run Backend Pytest Suite (Auth, Ownership, Adapters, Feed Sync)
 cd backend
 source venv/bin/activate
 pytest tests/ -v

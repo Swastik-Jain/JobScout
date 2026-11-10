@@ -1,7 +1,6 @@
 import pytest
 import httpx
 from unittest.mock import AsyncMock
-from app.tools.job_scraper import _extract_json_ld, _parse_from_json_ld
 from app.tools.ats_adapters import (
     SLUG_REGEX,
     SLUG_BLACKLIST,
@@ -12,51 +11,6 @@ from app.tools.ats_adapters import (
     fetch_lever_listings,
     fetch_ashby_listings,
 )
-
-
-def test_scraper_json_ld_extraction():
-    """Verify JSON-LD schema parsing from HTML containing a JobPosting block."""
-    sample_html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Senior Software Engineer - Datadog Careers</title>
-        <script type="application/ld+json">
-        {
-            "@context": "https://schema.org/",
-            "@type": "JobPosting",
-            "title": "Staff Backend Engineer",
-            "description": "<p>Build high-throughput telemetry pipelines handling 50TB daily.</p>",
-            "hiringOrganization": {
-                "@type": "Organization",
-                "name": "Datadog"
-            },
-            "jobLocation": {
-                "@type": "Place",
-                "address": {
-                    "@type": "PostalAddress",
-                    "addressLocality": "Remote, US"
-                }
-            },
-            "employmentType": "FULL_TIME"
-        }
-        </script>
-    </head>
-    <body>
-        <h1>Job Details</h1>
-    </body>
-    </html>
-    """
-    json_ld = _extract_json_ld(sample_html)
-    assert json_ld is not None
-    assert json_ld.get("@type") == "JobPosting"
-
-    parsed = _parse_from_json_ld(json_ld)
-    assert parsed["title"] == "Staff Backend Engineer"
-    assert parsed["company"] == "Datadog"
-    assert "telemetry pipelines" in parsed["description"]
-    assert "Remote, US" in parsed["location"]
-    assert parsed["employment_type"] == "FULL_TIME"
 
 
 def test_slug_regex_and_blacklist_rules():

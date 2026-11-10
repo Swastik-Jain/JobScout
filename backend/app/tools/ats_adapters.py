@@ -540,13 +540,18 @@ async def enrich_greenhouse_descriptions(shortlist: List[Dict]):
 
     async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
         async def _fetch_one(job_dict):
-            # Extract slug from URL
+            slug = None
             slug_info = extract_slug_from_url(job_dict.get("url", ""))
             if slug_info:
                 _, slug = slug_info
+            elif job_dict.get("company"):
+                slug = job_dict["company"].lower().replace(" ", "").replace("-", "")
+
+            if slug:
                 ext_id = job_dict.get("external_id", "")
-                desc = await fetch_greenhouse_job_content(slug, ext_id, client)
-                if desc:
-                    job_dict["description"] = desc[:1200]
+                if ext_id:
+                    desc = await fetch_greenhouse_job_content(slug, str(ext_id), client)
+                    if desc:
+                        job_dict["description"] = desc[:2500]
 
         await asyncio.gather(*[_fetch_one(j) for j in to_fetch], return_exceptions=True)

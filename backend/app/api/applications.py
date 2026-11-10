@@ -13,12 +13,14 @@ State-Machine Driven Human-in-the-Loop Application Lifecycle:
 """
 from typing import Optional, List
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Response
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Response, Query, status
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.core.db import get_session
-from app.api.deps import get_current_user
+from app.core.security import decode_token
+from app.api.deps import get_current_user, bearer_scheme
 from app.models.models import (
     UserProfile,
     Job,
@@ -34,6 +36,7 @@ from app.services.application_service import (
     VALID_TRANSITIONS,
 )
 from app.services.resume_validator import render_deterministic_base_resume
+from app.schemas.resume_schema import ResumeData, render_plain_text
 
 router = APIRouter()
 
@@ -129,6 +132,7 @@ def list_my_applications(
             "updated_at": str(app.updated_at),
             "ats_score": latest_version.ats_score if latest_version else None,
             "has_materials": latest_version is not None,
+            "resume": latest_version.resume_json if latest_version else None,
         })
     return result
 
@@ -180,6 +184,7 @@ def get_application_details(
         "base_resume_md": base_resume,
         "materials": {
             "version_number": latest_version.version_number if latest_version else 0,
+            "resume": latest_version.resume_json if latest_version else None,
             "resume_md": latest_version.resume_md if latest_version else base_resume,
             "cover_note": latest_version.cover_note if latest_version else "",
             "qa_drafts": latest_version.qa_drafts if latest_version else [],
@@ -349,6 +354,69 @@ def get_preparation_status(
         "prep_error": app.prep_error,
         "ats_score": latest_version.ats_score if latest_version else None,
         "has_materials": latest_version is not None,
+        "resume": latest_version.resume_json if latest_version else None,
+    }
+
+
+@router.put("/applications/{application_id}/resume")
+def update_application_resume(
+    application_id: int,
+    body: ResumeData,
+    current_user: UserProfile = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Creates a new ResumeVersion from edited ResumeData.
+    Requires auth; 404 if application does not belong to current user.
+    Copies cover_note, qa_drafts, ats_score, improvements from latest version.
+    Sets resume_json = body and resume_md = render_plain_text(body).
+    Does not recompute ats_score; does not run anti-fabrication validator on user edits.
+    Returns the new version.
+    """
+    app = session.get(Application, application_id)
+    if not app or app.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    latest = session.exec(
+        select(ResumeVersion)
+        .where(ResumeVersion.application_id == app.id)
+        .order_by(ResumeVersion.version_number.desc())
+    ).first()
+
+    rendered_md = render_plain_text(body)
+    new_version_number = (latest.version_number + 1) if latest else 1
+
+    new_version = ResumeVersion(
+        application_id=app.id,
+        version_number=new_version_number,
+        resume_md=rendered_md,
+        resume_json=body.model_dump(),
+        cover_note=latest.cover_note if latest else "",
+        qa_drafts=latest.qa_drafts if latest else [],
+        ats_score=latest.ats_score if latest else 0.0,
+        ats_details=latest.ats_details if latest else {},
+        improvements=latest.improvements if latest else [],
+    )
+    session.add(new_version)
+    session.flush()
+    app.resume_version_id = new_version.id
+    app.updated_at = datetime.now(timezone.utc)
+    session.add(app)
+    session.commit()
+    session.refresh(new_version)
+
+    return {
+        "id": new_version.id,
+        "application_id": new_version.application_id,
+        "version_number": new_version.version_number,
+        "resume": new_version.resume_json,
+        "resume_md": new_version.resume_md,
+        "cover_note": new_version.cover_note,
+        "qa_drafts": new_version.qa_drafts,
+        "ats_score": new_version.ats_score,
+        "ats_details": new_version.ats_details,
+        "improvements": new_version.improvements,
+        "created_at": str(new_version.created_at),
     }
 
 
@@ -356,10 +424,29 @@ def get_preparation_status(
 def export_application_material(
     id: int,
     format: str = "markdown",  # markdown | docx | text
-    current_user: UserProfile = Depends(get_current_user),
+    token: Optional[str] = Query(None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     session: Session = Depends(get_session),
 ):
     """Exports tailored resume as DOCX or Markdown."""
+    raw_token = credentials.credentials if credentials and credentials.credentials else token
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials were not provided.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    email = decode_token(raw_token)
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    current_user = session.exec(select(UserProfile).where(UserProfile.email == email)).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User account no longer exists.")
+
     app = session.get(Application, id)
     if not app or app.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Application not found.")

@@ -95,3 +95,22 @@ def test_application_ownership_and_cross_user_isolation(
     ).all()
     assert len(timeline) >= 1
     assert any(t.to_status == "applied" for t in timeline)
+
+    # 6. Verify export with header Bearer token
+    exp_md_resp = client.get(f"/api/v1/applications/{app_id}/export?format=markdown", headers=headers_a)
+    assert exp_md_resp.status_code == 200
+    assert "text/markdown" in exp_md_resp.headers["content-type"]
+
+    exp_docx_resp = client.get(f"/api/v1/applications/{app_id}/export?format=docx", headers=headers_a)
+    assert exp_docx_resp.status_code == 200
+    assert "officedocument" in exp_docx_resp.headers["content-type"]
+
+    # 7. Verify export with query token
+    exp_query_resp = client.get(f"/api/v1/applications/{app_id}/export?format=markdown&token={token_a}")
+    assert exp_query_resp.status_code == 200
+    assert "text/markdown" in exp_query_resp.headers["content-type"]
+
+    # 8. Unauthenticated export must return 401
+    unauth_resp = client.get(f"/api/v1/applications/{app_id}/export?format=markdown")
+    assert unauth_resp.status_code == 401
+

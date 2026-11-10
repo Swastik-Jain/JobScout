@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { 
   X, 
   ExternalLink, 
@@ -13,10 +13,13 @@ import {
   AlertCircle,
   RotateCw,
   Edit3,
-  Save
+  Save,
+  Loader2,
 } from 'lucide-react';
 
-import api, { resolveApiUrl } from '../lib/api';
+import api from '../lib/api';
+
+const ResumeStudio = React.lazy(() => import('./resume/ResumeStudio'));
 
 interface ReviewModalProps {
   applicationId: number;
@@ -53,6 +56,41 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   const [isEditingCover, setIsEditingCover] = useState(false);
   const [editedCover, setEditedCover] = useState('');
   const [savingEdits, setSavingEdits] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState<'docx' | 'markdown' | null>(null);
+
+  const handleExport = async (format: 'docx' | 'markdown') => {
+    try {
+      setDownloadingFormat(format);
+      setErrorMsg(null);
+      const res = await api.get(`/applications/${applicationId}/export?format=${format}`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], {
+        type: format === 'docx'
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : 'text/markdown; charset=utf-8',
+      });
+      const dispo = res.headers ? res.headers['content-disposition'] : null;
+      let filename = `${job.company || 'Tailored'}_Resume.${format === 'docx' ? 'docx' : 'md'}`;
+      if (dispo) {
+        const match = dispo.match(/filename=["']?([^"';]+)["']?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Export download failed:', err);
+      setErrorMsg('Failed to download resume file. Please retry.');
+    } finally {
+      setDownloadingFormat(null);
+    }
+  };
 
   const fetchDetails = async () => {
     try {
@@ -157,37 +195,23 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   const materials = details?.materials;
   const baseResume = details?.base_resume_md || '';
   const tailoredResume = materials?.resume_md || baseResume;
-  const atsScore = materials?.ats_score ?? details?.job?.match_score ?? 70;
+  const atsScore = materials?.ats_score;
   const atsDetails = materials?.ats_details || {};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-6xl max-h-[90vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col shadow-2xl overflow-hidden">
         
         {/* Header */}
         <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/40 flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-white tracking-tight">{job.title}</h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                {details?.status || 'saved'}
-              </span>
-            </div>
+            <h2 className="text-xl font-bold text-white tracking-tight">{job.title}</h2>
             <p className="text-zinc-400 text-sm mt-0.5">
               {job.company} {job.location ? `· ${job.location}` : ''}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* ATS Score badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700/60">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              <div>
-                <span className="text-xs text-zinc-400 font-medium">ATS Score: </span>
-                <span className="text-sm font-bold text-emerald-400">{Math.round(atsScore)}%</span>
-              </div>
-            </div>
-
             <button 
               onClick={onClose}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
@@ -312,167 +336,201 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               {activeTab === 'resume' && (
                 <div className="space-y-4">
                   {/* Transparent Dual-Factor ATS Score Breakdown Card */}
-                  <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400" />
-                        <span className="text-sm font-semibold text-white">ATS Scoring Breakdown</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/50 text-emerald-400 font-mono font-medium">
-                          Composite: {Math.round(atsScore)}%
-                        </span>
-                      </div>
-                      <div className="text-xs font-mono text-zinc-400">
-                        Formula: <span className="text-emerald-300 font-semibold">(60% × Keyword Match) + (40% × LLM Judge)</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      {/* 1. Keyword Coverage */}
-                      <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800/80 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-zinc-300 font-medium">1. Deterministic Keyword Coverage (60%)</span>
-                          <span className="font-bold text-blue-400 font-mono">{atsDetails.keyword_coverage_score ?? 75}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 rounded-full transition-all" 
-                            style={{ width: `${Math.min(100, Math.max(0, atsDetails.keyword_coverage_score ?? 75))}%` }} 
-                          />
-                        </div>
-                        {atsDetails.matched_keywords && atsDetails.matched_keywords.length > 0 && (
-                          <div className="pt-1">
-                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Matched Keywords:</div>
-                            <div className="flex flex-wrap gap-1">
-                              {atsDetails.matched_keywords.slice(0, 10).map((kw: string, idx: number) => (
-                                <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 flex items-center gap-1">
-                                  <Check size={10} /> {kw}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {atsDetails.missing_keywords && atsDetails.missing_keywords.length > 0 && (
-                          <div className="pt-1">
-                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Missing JD Keywords:</div>
-                            <div className="flex flex-wrap gap-1">
-                              {atsDetails.missing_keywords.slice(0, 6).map((kw: string, idx: number) => (
-                                <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/40 text-amber-300/80 border border-amber-800/40">
-                                  - {kw}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 2. LLM Judge Semantic Rating */}
-                      <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800/80 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-zinc-300 font-medium">2. LLM Judge Semantic Rating (40%)</span>
-                          <span className="font-bold text-purple-400 font-mono">{atsDetails.semantic_alignment_score ?? 85}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-purple-500 rounded-full transition-all" 
-                            style={{ width: `${Math.min(100, Math.max(0, atsDetails.semantic_alignment_score ?? 85))}%` }} 
-                          />
-                        </div>
-                        <div className="text-xs text-zinc-400 italic pt-1 leading-relaxed bg-zinc-900/40 p-2 rounded border border-zinc-800/40">
-                          "{atsDetails.judge_critique || 'Objective LLM audit: High technical relevance and grounded experience citations.'}"
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60 flex-wrap gap-2">
-                    <div className="text-xs text-zinc-400">
-                      Version: <span className="text-zinc-300 font-medium">v{materials?.version_number || 1}</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => {
-                          if (isEditingResume) {
-                            handleSaveEdits('resume');
-                          } else {
-                            setIsEditingResume(true);
-                          }
-                        }}
-                        disabled={savingEdits}
-                        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${
-                          isEditingResume
-                            ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60 font-semibold'
-                            : 'bg-zinc-900 border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800'
-                        }`}
-                      >
-                        {isEditingResume ? <Save className="w-3.5 h-3.5 text-emerald-400" /> : <Edit3 className="w-3.5 h-3.5" />}
-                        {isEditingResume ? (savingEdits ? 'Saving…' : 'Save Edits') : 'Edit Resume'}
-                      </button>
-                      {isEditingResume && (
-                        <button
-                          onClick={() => {
-                            setIsEditingResume(false);
-                            setEditedResume(tailoredResume);
-                          }}
-                          className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      <a
-                        href={resolveApiUrl(`/applications/${applicationId}/export?format=docx`)}
-                        download
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Export .DOCX
-                      </a>
-                      <a
-                        href={resolveApiUrl(`/applications/${applicationId}/export?format=markdown`)}
-                        download
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Export .MD
-                      </a>
-                      <button
-                        onClick={() => handleCopy(editedResume || tailoredResume, 'resume')}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
-                      >
-                        {copiedSection === 'resume' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedSection === 'resume' ? 'Copied' : 'Copy'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {atsDetails.matched_keywords && (
-                    <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
-                      <span className="text-xs font-semibold text-zinc-400">Matched ATS Keywords:</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {atsDetails.matched_keywords.map((kw: string, i: number) => (
-                          <span key={i} className="px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
-                            <Check size={11} /> {kw}
+                  {atsScore !== undefined && atsScore !== null && (
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-emerald-400" />
+                          <span className="text-sm font-semibold text-white">ATS Scoring Breakdown</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/50 text-emerald-400 font-mono font-medium">
+                            Composite: {Math.round(atsScore)}%
                           </span>
-                        ))}
+                        </div>
+                        <div className="text-xs font-mono text-zinc-400">
+                          Formula: <span className="text-emerald-300 font-semibold">(60% × Keyword Match) + (40% × LLM Judge)</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                        {/* 1. Keyword Coverage */}
+                        <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800/80 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-zinc-300 font-medium">1. Deterministic Keyword Coverage (60%)</span>
+                            <span className="font-bold text-blue-400 font-mono">{atsDetails.keyword_coverage_score ?? 0}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 rounded-full transition-all" 
+                              style={{ width: `${Math.min(100, Math.max(0, atsDetails.keyword_coverage_score ?? 0))}%` }} 
+                            />
+                          </div>
+                          {atsDetails.matched_keywords && atsDetails.matched_keywords.length > 0 && (
+                            <div className="pt-1">
+                              <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Matched Keywords:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {atsDetails.matched_keywords.slice(0, 10).map((kw: string, idx: number) => (
+                                  <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 flex items-center gap-1">
+                                    <Check size={10} /> {kw}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {atsDetails.missing_keywords && atsDetails.missing_keywords.length > 0 && (
+                            <div className="pt-1">
+                              <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Missing JD Keywords:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {atsDetails.missing_keywords.slice(0, 6).map((kw: string, idx: number) => (
+                                  <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/40 text-amber-300/80 border border-amber-800/40">
+                                    - {kw}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. LLM Judge Semantic Rating */}
+                        <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800/80 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-zinc-300 font-medium">2. LLM Judge Semantic Rating (40%)</span>
+                            <span className="font-bold text-purple-400 font-mono">{atsDetails.semantic_alignment_score ?? 0}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-purple-500 rounded-full transition-all" 
+                              style={{ width: `${Math.min(100, Math.max(0, atsDetails.semantic_alignment_score ?? 0))}%` }} 
+                            />
+                          </div>
+                          <div className="text-xs text-zinc-400 italic pt-1 leading-relaxed bg-zinc-900/40 p-2 rounded border border-zinc-800/40">
+                            "{atsDetails.judge_critique || 'Objective LLM audit: High technical relevance and grounded experience citations.'}"
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {isEditingResume ? (
-                    <div className="space-y-2">
-                      <div className="text-[11px] text-zinc-500">
-                        Directly edit the markdown below. Changes will be saved as an updated version and update the ATS diff.
-                      </div>
-                      <textarea
-                        value={editedResume}
-                        onChange={e => setEditedResume(e.target.value)}
-                        rows={16}
-                        className="w-full p-4 bg-zinc-900/90 border border-primary/50 rounded-xl text-zinc-100 text-xs font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-primary shadow-inner select-text"
-                        placeholder="Edit markdown resume..."
+                  {materials?.resume ? (
+                    <Suspense
+                      fallback={
+                        <div className="flex items-center justify-center p-12 text-zinc-400 text-xs">
+                          <RotateCw className="w-4 h-4 animate-spin text-blue-400 mr-2" />
+                          Loading Resume Studio…
+                        </div>
+                      }
+                    >
+                      <ResumeStudio
+                        applicationId={applicationId}
+                        initial={materials.resume}
+                        onSaved={() => {
+                          fetchDetails();
+                        }}
                       />
-                    </div>
+                    </Suspense>
                   ) : (
-                    <pre className="p-4 bg-zinc-900/40 border border-zinc-800 rounded-xl text-zinc-300 text-xs font-mono whitespace-pre-wrap leading-relaxed select-text">
-                      {tailoredResume}
-                    </pre>
+                    <>
+                      <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60 flex-wrap gap-2">
+                        <div className="text-xs text-zinc-400">
+                          Version: <span className="text-zinc-300 font-medium">v{materials?.version_number || 1}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => {
+                              if (isEditingResume) {
+                                handleSaveEdits('resume');
+                              } else {
+                                setIsEditingResume(true);
+                              }
+                            }}
+                            disabled={savingEdits}
+                            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${
+                              isEditingResume
+                                ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60 font-semibold'
+                                : 'bg-zinc-900 border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800'
+                            }`}
+                          >
+                            {isEditingResume ? <Save className="w-3.5 h-3.5 text-emerald-400" /> : <Edit3 className="w-3.5 h-3.5" />}
+                            {isEditingResume ? (savingEdits ? 'Saving…' : 'Save Edits') : 'Edit Resume'}
+                          </button>
+                          {isEditingResume && (
+                            <button
+                              onClick={() => {
+                                setIsEditingResume(false);
+                                setEditedResume(tailoredResume);
+                              }}
+                              className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleExport('docx')}
+                            disabled={downloadingFormat === 'docx'}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800 transition disabled:opacity-50 cursor-pointer"
+                          >
+                            {downloadingFormat === 'docx' ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5" />
+                            )}
+                            Export .DOCX
+                          </button>
+                          <button
+                            onClick={() => handleExport('markdown')}
+                            disabled={downloadingFormat === 'markdown'}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800 transition disabled:opacity-50 cursor-pointer"
+                          >
+                            {downloadingFormat === 'markdown' ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5" />
+                            )}
+                            Export .MD
+                          </button>
+                          <button
+                            onClick={() => handleCopy(editedResume || tailoredResume, 'resume')}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
+                          >
+                            {copiedSection === 'resume' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedSection === 'resume' ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {atsDetails.matched_keywords && (
+                        <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
+                          <span className="text-xs font-semibold text-zinc-400">Matched ATS Keywords:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {atsDetails.matched_keywords.map((kw: string, i: number) => (
+                              <span key={i} className="px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
+                                <Check size={11} /> {kw}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {isEditingResume ? (
+                        <div className="space-y-2">
+                          <div className="text-[11px] text-zinc-500">
+                            Directly edit the markdown below. Changes will be saved as an updated version and update the ATS diff.
+                          </div>
+                          <textarea
+                            value={editedResume}
+                            onChange={e => setEditedResume(e.target.value)}
+                            rows={16}
+                            className="w-full p-4 bg-zinc-900/90 border border-primary/50 rounded-xl text-zinc-100 text-xs font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-primary shadow-inner select-text"
+                            placeholder="Edit markdown resume..."
+                          />
+                        </div>
+                      ) : (
+                        <pre className="p-4 bg-zinc-900/40 border border-zinc-800 rounded-xl text-zinc-300 text-xs font-mono whitespace-pre-wrap leading-relaxed select-text">
+                          {tailoredResume}
+                        </pre>
+                      )}
+                    </>
                   )}
+
                 </div>
               )}
 

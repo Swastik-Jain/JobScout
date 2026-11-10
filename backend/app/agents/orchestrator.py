@@ -164,12 +164,14 @@ async def resume_tailor_node(state: AgentState) -> Dict:
     final_resume = result.resume_md if is_valid else base_resume
 
     return {
+        "resume_data": result.resume_data,
         "resume_md": final_resume,
         "improvements": result.improvements,
         "iteration": state.get("iteration", 0) + 1,
         "status": "resume_tailored",
         "logs": [f"ResumeTailorAgent: Tailored resume for '{job.get('title')}' (Iteration {state.get('iteration', 0) + 1})."],
     }
+
 
 
 async def ats_critic_node(state: AgentState) -> Dict:

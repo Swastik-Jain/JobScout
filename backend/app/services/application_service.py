@@ -195,9 +195,38 @@ async def run_application_prep_task(application_id: int, user_id: int):
         profile_dict = user.dict()
         base_resume = render_deterministic_base_resume(profile_dict)
 
+        # Lazy enrichment: Ensure complete JD content from ATS API if empty
+        if (not job.description or len(job.description.strip()) < 50) and job.external_id:
+            try:
+                import httpx
+                from app.tools.ats_adapters import fetch_greenhouse_job_content, extract_slug_from_url
+                slug = None
+                slug_info = extract_slug_from_url(job.url or "")
+                if slug_info:
+                    _, slug = slug_info
+                elif job.company:
+                    slug = job.company.lower().replace(" ", "").replace("-", "")
+
+                if slug:
+                    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                        live_desc = await fetch_greenhouse_job_content(slug, str(job.external_id), client)
+                        if live_desc and len(live_desc.strip()) > 50:
+                            job.description = live_desc
+                            session.add(job)
+                            session.commit()
+                            session.refresh(job)
+            except Exception as e:
+                logger.warning(f"[ApplicationService] ➔ Could not enrich job description for {job.id}: {e}")
+
         job_desc = job.description or f"{job.title} at {job.company}"
 
         # ── 1. Tailored Resume Generation with Strict Entity Constraints ──
+        from app.agents.resume_agent import ResumeAgent
+        from app.schemas.resume_schema import build_deterministic_resume_data, render_plain_text
+
+        base_data = build_deterministic_resume_data(profile_dict)
+        base_resume = render_plain_text(base_data)
+        tailored_resume_data = base_data
         tailored_resume = base_resume
         improvements = ["Highlighted relevant Python and backend frameworks.", "Tailored project bullets for job requirements."]
         cover_note = f"Dear Hiring Team at {job.company},\n\nI am writing to express my strong interest in the {job.title} role. With hands-on experience building reliable backend systems, I am excited about the opportunity to contribute to your team.\n\nBest regards,\n{user.name}"
@@ -212,60 +241,47 @@ async def run_application_prep_task(application_id: int, user_id: int):
             }
         ]
 
+        try:
+            agent = ResumeAgent()
+            out = await agent.a_generate_resume(profile_dict, job_desc)
+            if out.resume_data:
+                tailored_resume_data = out.resume_data
+                tailored_resume = out.resume_md
+                improvements = out.improvements
+        except Exception as e:
+            logger.error(f"[ApplicationService] ➔ Preparation generation exception: {e}")
+
+        # Optional cover note and Q&A drafting
         if _client:
             try:
-                prompt = f"""You are a Career Strategist. Tailor the candidate's resume for this specific job description.
+                cover_prompt = f"""You are a Career Strategist. Generate a concise cover note and 2 interview Q&A drafts.
+CANDIDATE: {user.name}, Skills: {', '.join(user.skills[:5])}
+JOB: {job.title} at {job.company} ({job_desc[:800]})
 
-GROUND-RULE (CRITICAL):
-- You MUST NOT invent any company, employer, university, degree, or project that is NOT in the candidate's baseline resume.
-- You may ONLY reword and refine the action verbs and bullet descriptions under existing experiences and projects to emphasize relevant keywords from the job description.
-
-CANDIDATE BASELINE RESUME:
-{base_resume}
-
-JOB DESCRIPTION ({job.title} at {job.company}):
-{job_desc[:1500]}
-
-OUTPUT FORMAT:
-Return JSON with:
+Return strict JSON:
 {{
-  "tailored_resume_md": "<Full tailored Markdown resume>",
   "cover_note": "<Concise 2-paragraph targeted cover note>",
   "qa_drafts": [
-    {{"question": "Why {job.company}?", "answer": "<1-paragraph draft based on user experience>"}},
-    {{"question": "Describe a key technical challenge you solved.", "answer": "<1-paragraph draft strictly citing user projects>"}}
-  ],
-  "improvements": ["<bullet 1>", "<bullet 2>", "<bullet 3>"]
+    {{"question": "Why {job.company}?", "answer": "<1-paragraph draft based on candidate skills>"}},
+    {{"question": "Describe a key technical challenge you solved.", "answer": "<1-paragraph draft strictly citing user skills>"}}
+  ]
 }}
 """
-                response = await _client.aio.models.generate_content(
+                cov_resp = await _client.aio.models.generate_content(
                     model=settings.gemini_primary_model,
-                    contents=prompt,
+                    contents=cover_prompt,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         temperature=0.2,
                     ),
                 )
-                data = json.loads(response.text)
-
-                candidate_md = data.get("tailored_resume_md") or base_resume
-                # Run No-Fabrication Validator
-                is_valid, violations = validate_no_fabrication(candidate_md, profile_dict)
-                if is_valid:
-                    tailored_resume = candidate_md
-                else:
-                    logger.warning(f"[ApplicationService] ➔ Fabrication detected ({violations}); using validated base resume.")
-                    tailored_resume = base_resume
-
-                if data.get("cover_note"):
-                    cover_note = data["cover_note"]
-                if data.get("qa_drafts"):
-                    qa_drafts = data["qa_drafts"]
-                if data.get("improvements"):
-                    improvements = data["improvements"]
-
+                cov_data = json.loads(cov_resp.text)
+                if cov_data.get("cover_note"):
+                    cover_note = cov_data["cover_note"]
+                if cov_data.get("qa_drafts"):
+                    qa_drafts = cov_data["qa_drafts"]
             except Exception as e:
-                logger.error(f"[ApplicationService] ➔ Preparation generation exception: {e}")
+                logger.warning(f"[ApplicationService] Cover note generation skipped: {e}")
 
         # Run independent LLM Judge and compute transparent ATS Score
         judge_score, judge_critique = await judge_resume_with_llm(
@@ -290,6 +306,7 @@ Return JSON with:
         rv = ResumeVersion(
             application_id=app.id,
             version_number=version_num,
+            resume_json=tailored_resume_data.model_dump() if tailored_resume_data else None,
             resume_md=tailored_resume,
             cover_note=cover_note,
             qa_drafts=qa_drafts,
@@ -299,6 +316,7 @@ Return JSON with:
             created_at=utc_now(),
         )
         session.add(rv)
+
 
         # Update application status
         app.prep_status = "ready"

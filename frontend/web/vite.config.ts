@@ -16,9 +16,11 @@ export default defineConfig(({ mode }) => {
         '/profile': { target: backendUrl, changeOrigin: true },
         '/fetch-jobs': { target: backendUrl, changeOrigin: true },
         '/jobs': { target: backendUrl, changeOrigin: true },
+        '/resume': { target: backendUrl, changeOrigin: true },
         '/generate-resume': { target: backendUrl, changeOrigin: true },
         '/apply': { target: backendUrl, changeOrigin: true },
         '/applications': { target: backendUrl, changeOrigin: true },
+        '/stats': { target: backendUrl, changeOrigin: true },
         '/logs': {
           target: wsBackendUrl,
           ws: true,

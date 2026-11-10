@@ -212,8 +212,17 @@ export const Profile: React.FC = () => {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ repo_links: links }),
+        body: JSON.stringify({ repo_links: links, email: user?.email || '' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errDetail = Array.isArray(errorData.detail)
+          ? errorData.detail.map((d: any) => d.msg).join(', ')
+          : errorData.detail || 'Server error';
+        pushLog(`[RepoAgent] ➔ Error (${response.status}): ${errDetail}`);
+        return;
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();

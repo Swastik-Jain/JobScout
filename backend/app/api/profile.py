@@ -42,7 +42,7 @@ class ProfileUpdateRequest(BaseModel):
 
 class RepoAnalysisRequest(BaseModel):
     repo_links: List[str]
-    email: str
+    email: Optional[str] = None
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────

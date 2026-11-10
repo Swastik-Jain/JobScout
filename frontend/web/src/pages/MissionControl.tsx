@@ -194,9 +194,9 @@ const ApplicationRow: React.FC<{
 
               <button
                 onClick={(e) => { e.stopPropagation(); setReviewOpen(true); }}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-xs font-semibold transition"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 hover:border-blue-500/60 text-blue-300 text-xs font-semibold transition cursor-pointer"
               >
-                <FileText size={12} /> Review & Apply
+                <FileText size={12} className="shrink-0" /> Review & Prep
               </button>
             </div>
 
@@ -340,11 +340,11 @@ const ApplicationRow: React.FC<{
 
 // ─── Kanban Definitions & Card ───────────────────────────────────────────────
 const KANBAN_COLUMNS = [
-  { id: 'saved', label: 'Saved', color: 'border-zinc-700 bg-zinc-900/60 text-zinc-300' },
-  { id: 'prepared', label: 'Prepared', color: 'border-blue-700/60 bg-blue-950/40 text-blue-300' },
-  { id: 'applied', label: 'Applied', color: 'border-emerald-700/60 bg-emerald-950/40 text-emerald-300' },
-  { id: 'interviewing', label: 'Interviewing', color: 'border-purple-700/60 bg-purple-950/40 text-purple-300' },
-  { id: 'closed', label: 'Offer / Decided', color: 'border-zinc-800 bg-zinc-900/40 text-zinc-400' },
+  { id: 'saved', label: 'Saved', color: 'border border-zinc-700/80 bg-zinc-900/60 text-zinc-300' },
+  { id: 'prepared', label: 'Prepared', color: 'border border-blue-700/60 bg-blue-950/40 text-blue-300' },
+  { id: 'applied', label: 'Applied', color: 'border border-emerald-700/60 bg-emerald-950/40 text-emerald-300' },
+  { id: 'interviewing', label: 'Interviewing', color: 'border border-purple-700/60 bg-purple-950/40 text-purple-300' },
+  { id: 'closed', label: 'Offer / Decided', color: 'border border-zinc-800 bg-zinc-900/40 text-zinc-400' },
 ];
 
 function getColumnForStatus(status: string): string {
@@ -388,30 +388,30 @@ const KanbanCard: React.FC<{
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="glass p-4 rounded-xl border border-zinc-800/80 hover:border-zinc-700/80 space-y-3 transition group relative"
+        className="glass p-3.5 rounded-xl border border-zinc-800/80 hover:border-zinc-700/80 space-y-3 transition group relative min-w-0 w-full"
       >
         <div>
           <div className="flex items-start justify-between gap-2">
-            <h4 className="text-white text-sm font-semibold leading-snug line-clamp-2">
+            <h4 className="text-white text-sm font-semibold leading-snug line-clamp-2 group-hover:text-blue-300 transition-colors">
               {app.job_title}
             </h4>
           </div>
-          <p className="text-zinc-400 text-xs mt-1 flex items-center gap-1">
-            <Building2 size={11} className="text-zinc-500 shrink-0" />
+          <p className="text-zinc-400 text-xs mt-1.5 flex items-center gap-1.5">
+            <Building2 size={12} className="text-zinc-500 shrink-0" />
             <span className="truncate">{app.company}</span>
           </p>
           {app.location && (
-            <p className="text-zinc-500 text-[11px] mt-0.5 flex items-center gap-1">
-              <MapPin size={10} className="shrink-0" />
+            <p className="text-zinc-500 text-[11px] mt-1 flex items-center gap-1.5">
+              <MapPin size={11} className="shrink-0" />
               <span className="truncate">{app.location}</span>
             </p>
           )}
         </div>
 
         {/* Badges strip: ATS & Risk & Alerts */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
           {app.ats_score > 0 && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 border border-zinc-700/60 text-emerald-400">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 border border-zinc-700/60 text-emerald-400 shrink-0">
               ATS {Math.round(app.ats_score)}%
             </span>
           )}
@@ -420,7 +420,7 @@ const KanbanCard: React.FC<{
           {isStale && (
             <span
               title="Applied > 7 days ago with no update"
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/50 border border-amber-800/50 text-amber-300"
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/50 border border-amber-800/50 text-amber-300 shrink-0"
             >
               <Clock size={10} /> 7d+ Follow Up
             </span>
@@ -429,7 +429,7 @@ const KanbanCard: React.FC<{
           {duplicateCompany && (
             <span
               title="Multiple applications detected for this company"
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/40 border border-amber-800/40 text-amber-300"
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/40 border border-amber-800/40 text-amber-300 shrink-0"
             >
               <AlertTriangle size={10} /> Duplicate Co.
             </span>
@@ -438,7 +438,7 @@ const KanbanCard: React.FC<{
           {app.is_active_on_ats === false && (
             <span
               title="Job posting has been closed on employer ATS"
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/50 border border-red-800/50 text-red-300"
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/50 border border-red-800/50 text-red-300 shrink-0"
             >
               <AlertCircle size={10} /> Closed on ATS
             </span>
@@ -450,24 +450,31 @@ const KanbanCard: React.FC<{
         )}
 
         {/* Actions bar */}
-        <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-2">
-          <select
-            value={app.status.toLowerCase()}
-            disabled={transitioning}
-            onChange={e => handleStatusChange(e.target.value)}
-            className="px-2 py-1 bg-zinc-900 border border-zinc-700/70 rounded-lg text-[11px] text-zinc-300 focus:outline-none cursor-pointer max-w-[110px]"
-          >
-            {['saved', 'prepared', 'applied', 'interviewing', 'accepted', 'declined', 'rejected', 'ghosted', 'withdrawn'].map(st => (
-              <option key={st} value={st}>{st.toUpperCase()}</option>
-            ))}
-          </select>
-
+        <div className="pt-2.5 border-t border-zinc-800/60 space-y-2">
           <button
+            type="button"
             onClick={() => setReviewOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-lg text-xs font-semibold transition"
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-blue-600/20 hover:bg-blue-600/30 active:bg-blue-600/40 border border-blue-500/40 hover:border-blue-500/60 text-blue-300 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
           >
-            <FileText size={11} /> Review & Prep
+            <FileText size={12} className="shrink-0" />
+            <span className="whitespace-nowrap">Review & Prep</span>
           </button>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 shrink-0">
+              Status
+            </span>
+            <select
+              value={app.status.toLowerCase()}
+              disabled={transitioning}
+              onChange={e => handleStatusChange(e.target.value)}
+              className="px-2 py-1 bg-zinc-900 border border-zinc-700/70 hover:border-zinc-600 rounded-md text-[11px] font-medium text-zinc-300 focus:outline-none focus:border-zinc-500 cursor-pointer transition max-w-[130px]"
+            >
+              {['saved', 'prepared', 'applied', 'interviewing', 'accepted', 'declined', 'rejected', 'ghosted', 'withdrawn'].map(st => (
+                <option key={st} value={st}>{st.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </motion.div>
 
@@ -711,12 +718,12 @@ export const MissionControl: React.FC = () => {
 
           <div className="flex items-center gap-3 flex-wrap">
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 h-9">
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 px-3 h-7.5 rounded-md text-xs font-semibold transition ${
                   viewMode === 'kanban'
-                    ? 'bg-blue-600 text-white shadow'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -724,9 +731,9 @@ export const MissionControl: React.FC = () => {
               </button>
               <button
                 onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 px-3 h-7.5 rounded-md text-xs font-semibold transition ${
                   viewMode === 'table'
-                    ? 'bg-blue-600 text-white shadow'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -736,25 +743,25 @@ export const MissionControl: React.FC = () => {
 
             {/* Search */}
             <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 pr-3 py-1.5 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-700/60 w-48"
+                className="h-9 pl-9 pr-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-blue-600/70 rounded-lg text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none transition w-44 sm:w-52"
               />
             </div>
 
             {/* Status filter */}
-            <div className="flex items-center gap-1">
-              <Filter size={12} className="text-zinc-500" />
+            <div className="flex items-center gap-1.5 px-2.5 h-9 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs text-zinc-300 transition">
+              <Filter size={12} className="text-zinc-500 shrink-0" />
               <select
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
-                className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 px-2 py-1.5 focus:outline-none"
+                className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer pr-1"
               >
-                {statuses.map(s => <option key={s}>{s}</option>)}
+                {statuses.map(s => <option key={s} className="bg-zinc-900 text-zinc-200">{s}</option>)}
               </select>
             </div>
           </div>
@@ -787,7 +794,7 @@ export const MissionControl: React.FC = () => {
             {KANBAN_COLUMNS.map(col => {
               const colApps = filtered.filter(a => getColumnForStatus(a.status) === col.id);
               return (
-                <div key={col.id} className="flex flex-col bg-zinc-950/40 rounded-xl border border-zinc-800/60 p-3 space-y-3 min-h-[420px]">
+                <div key={col.id} className="flex flex-col bg-zinc-950/40 rounded-xl border border-zinc-800/60 p-3 space-y-3 min-h-[420px] min-w-0">
                   <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
                     <span className={`px-2 py-0.5 rounded text-xs font-semibold ${col.color}`}>
                       {col.label}
@@ -797,9 +804,9 @@ export const MissionControl: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="flex-1 space-y-3 overflow-y-auto max-h-[680px]">
+                  <div className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden max-h-[680px]">
                     {colApps.length === 0 ? (
-                      <div className="h-28 flex items-center justify-center border border-dashed border-zinc-800/60 rounded-lg text-zinc-600 text-xs font-mono">
+                      <div className="h-28 flex items-center justify-center border border-dashed border-zinc-800/60 rounded-xl text-zinc-600 text-xs font-mono">
                         Empty
                       </div>
                     ) : (

@@ -53,3 +53,59 @@ export interface UserProfile {
   created_at?: string;
   updated_at?: string;
 }
+
+// ─── Structured Resume Types (Step 1 Schema) ───────────────────────────────────
+
+export interface ResumeLink {
+  label: string;
+  url: string;
+}
+
+export interface ResumeBasics {
+  name: string;
+  email: string;
+  phone?: string;
+  location?: string;
+  links: ResumeLink[];
+}
+
+export interface SkillGroup {
+  category: string;
+  items: string[];
+}
+
+export interface ExperienceItem {
+  role: string;
+  company: string;
+  location?: string;
+  start: string;
+  end: string;
+  bullets: string[];
+}
+
+export interface ProjectItem {
+  name: string;
+  tech: string[];
+  url?: string;
+  bullets: string[];
+}
+
+export interface EducationItem {
+  degree: string;
+  institution: string;
+  location?: string;
+  start?: string;
+  end: string;
+  score?: string;
+}
+
+export interface ResumeData {
+  basics: ResumeBasics;
+  summary?: string | null;
+  skills: SkillGroup[];
+  experience: ExperienceItem[];
+  projects: ProjectItem[];
+  education: EducationItem[];
+  certifications: string[];
+}
+
